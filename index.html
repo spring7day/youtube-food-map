@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="description" content="유튜브 채널 백년해방에 등장한 전국 565개 맛집 지도">
+<title>백년해방 맛집 지도</title>
+
+<!-- Leaflet CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<!-- MarkerCluster CSS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+<!-- Pretendard 폰트 -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+
+<style>
+/* ===== CSS 변수 디자인 시스템 ===== */
+:root {
+  --font-base: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', sans-serif;
+  --color-primary: #FF4B2B;
+  --color-primary-light: #FF6B4A;
+  --color-bg: #FFFFFF;
+  --color-surface: #FFFFFF;
+  --color-surface-2: #F8F8FA;
+  --color-border: #EAEAEF;
+  --color-text-primary: #111118;
+  --color-text-secondary: #6B6B80;
+  --color-text-muted: #A0A0B0;
+  --color-overlay: rgba(0, 0, 0, 0.45);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.07), 0 2px 8px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.13), 0 4px 12px rgba(0,0,0,0.07);
+  --shadow-sheet: 0 -4px 24px rgba(0,0,0,0.12), 0 -1px 6px rgba(0,0,0,0.06);
+
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 280ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 380ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  --header-height: 60px;
+  --sheet-peek: 72px;
+  --sheet-mid: 42vh;
+  --sheet-full: 87vh;
+}
+
+/* ===== 리셋 & 기본 ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--font-base);
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+button { cursor: pointer; border: none; background: none; font-family: inherit; }
+input { font-family: inherit; }
+a { color: inherit; text-decoration: none; }
+
+/* ===== 헤더 ===== */
+#header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--header-height);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 10px;
+  box-shadow: var(--shadow-sm);
+}
+#header-logo {
+  width: 32px;
+  height: 32px;
+  background: var(--color-primary);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+#header-title {
+  flex: 1;
+  min-width: 0;
+}
+#header-title h1 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#header-title .subtitle {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-weight: 400;
+  margin-top: 1px;
+}
+#header-channel-link {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+}
+#header-channel-link:hover {
+  background: #FFF0EE;
+  border-color: #FFCCC5;
+  color: var(--color-primary);
+}
+
+/* ===== 지도 ===== */
+#map {
+  position: fixed;
+  top: var(--header-height);
+  left: 0; right: 0;
+  bottom: 0;
+  z-index: 1;
+}
+
+/* ===== 지도 위 컨트롤 버튼 ===== */
+#map-controls {
+  position: fixed;
+  right: 14px;
+  bottom: calc(var(--sheet-peek) + 16px);
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: bottom var(--transition-slow);
+}
+.map-btn {
+  width: 44px;
+  height: 44px;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  transition: all var(--transition-fast);
+  border: 1px solid var(--color-border);
+}
+.map-btn:active, .map-btn:hover {
+  background: var(--color-surface-2);
+  color: var(--color-primary);
+  transform: scale(1.05);
+}
+.map-btn.active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+/* ===== 바텀 시트 ===== */
+#sheet {
+  position: fixed;
+  left: 0; right: 0;
+  bottom: 0;
+  z-index: 800;
+  background: var(--color-surface);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  box-shadow: var(--shadow-sheet);
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--transition-slow);
+  will-change: transform;
+  touch-action: none;
+}
+
+/* 시트 상태별 transform */
+#sheet.state-peek   { transform: translateY(calc(100% - var(--sheet-peek))); }
+#sheet.state-mid    { transform: translateY(calc(100% - var(--sheet-mid))); }
+#sheet.state-full   { transform: translateY(calc(100% - var(--sheet-full))); }
+
+/* 시트 내부 구조 */
+#sheet-handle-area {
+  padding: 10px 0 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  cursor: grab;
+  user-select: none;
+}
+#sheet-handle-area:active { cursor: grabbing; }
+.drag-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--color-border);
+  border-radius: var(--radius-full);
+}
+
+#search-bar-wrap {
+  padding: 0 14px 10px;
+  flex-shrink: 0;
+}
+#search-bar {
+  display: flex;
+  align-items: center;
+  background: var(--color-surface-2);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  padding: 0 14px;
+  gap: 8px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  height: 42px;
+}
+#search-bar:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(255,75,43,0.10);
+}
+#search-input {
+  flex: 1;
+  border: none;
+  background: none;
+  outline: none;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-text-primary);
+  min-width: 0;
+}
+#search-input::placeholder { color: var(--color-text-muted); }
+#search-clear {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  background: var(--color-text-muted);
+  color: white;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 12px;
+  transition: background var(--transition-fast);
+}
+#search-clear.visible { display: flex; }
+#search-clear:hover { background: var(--color-text-secondary); }
+
+/* 필터 칩 영역 */
+#filter-wrap {
+  flex-shrink: 0;
+  padding-bottom: 8px;
+}
+#filter-chips {
+  display: flex;
+  gap: 6px;
+  padding: 0 14px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+#filter-chips::-webkit-scrollbar { display: none; }
+.filter-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 11px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  background: var(--color-surface);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+  height: 30px;
+}
+.filter-chip:hover {
+  border-color: var(--color-primary-light);
+  color: var(--color-primary);
+}
+.filter-chip.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+.chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.filter-chip.active .chip-dot { background: rgba(255,255,255,0.7); }
+
+/* 리스트 영역 */
+#list-area {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 14px 32px;
+}
+#list-area::-webkit-scrollbar { width: 4px; }
+#list-area::-webkit-scrollbar-track { background: transparent; }
+#list-area::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 2px; }
+
+#list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0 10px;
+}
+#list-count {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+#list-sort-hint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+#restaurant-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 식당 카드 */
+.restaurant-card {
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.restaurant-card:hover {
+  border-color: var(--color-primary-light);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+.restaurant-card:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+.restaurant-card.highlighted {
+  border-color: var(--color-primary);
+  background: #FFF8F7;
+  box-shadow: 0 0 0 3px rgba(255,75,43,0.10);
+}
+.card-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 4px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2.5px white, 0 0 0 4px currentColor;
+}
+.card-content {
+  flex: 1;
+  min-width: 0;
+}
+.card-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.card-area-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 600;
+  margin-bottom: 5px;
+  color: white;
+  opacity: 0.9;
+}
+.card-video {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.card-video-icon { flex-shrink: 0; color: var(--color-primary); opacity: 0.7; }
+
+/* 빈 상태 */
+#empty-state {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--color-text-muted);
+  display: none;
+}
+#empty-state.visible { display: block; }
+#empty-state svg { margin-bottom: 12px; opacity: 0.4; }
+#empty-state p { font-size: 14px; font-weight: 500; }
+#empty-state small { font-size: 12px; margin-top: 4px; display: block; }
+
+/* ===== 팝업 커스텀 스타일 ===== */
+.leaflet-popup-content-wrapper {
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-lg) !important;
+  padding: 0 !important;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+.leaflet-popup-content {
+  margin: 0 !important;
+  width: 220px !important;
+}
+.leaflet-popup-tip-container { display: none; }
+.popup-inner {
+  padding: 14px 16px 16px;
+}
+.popup-region-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: white;
+}
+.popup-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--color-text-primary);
+  line-height: 1.3;
+  margin-bottom: 4px;
+}
+.popup-area {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-bottom: 10px;
+}
+.popup-video-title {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-bottom: 10px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.popup-yt-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--color-primary);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 9px 14px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+  cursor: pointer;
+  width: 100%;
+}
+.popup-yt-link:hover { background: var(--color-primary-light); }
+
+/* ===== 현재 위치 토스트 ===== */
+#toast {
+  position: fixed;
+  top: calc(var(--header-height) + 12px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-80px);
+  background: var(--color-text-primary);
+  color: white;
+  padding: 10px 18px;
+  border-radius: var(--radius-full);
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 2000;
+  transition: transform var(--transition-base);
+  white-space: nowrap;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+}
+#toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ===== 가까운 맛집 배지 ===== */
+.near-badge {
+  position: absolute;
+  top: -6px; right: -6px;
+  background: #FFD700;
+  color: #7A5500;
+  font-size: 8px;
+  font-weight: 800;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid white;
+  pointer-events: none;
+}
+
+/* ===== 데스크탑 레이아웃 ===== */
+@media (min-width: 768px) {
+  :root {
+    --sheet-full: 100vh;
+  }
+  #sheet {
+    position: fixed;
+    top: var(--header-height);
+    left: 0;
+    bottom: 0;
+    right: auto;
+    width: 360px;
+    border-radius: 0;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.10);
+    transform: none !important;
+    transition: none;
+  }
+  #sheet-handle-area { display: none; }
+  #map { left: 360px; top: var(--header-height); }
+  #map-controls { bottom: 20px; }
+  #list-area { padding-bottom: 20px; }
+  #search-bar-wrap { padding-top: 14px; }
+}
+
+/* ===== 마커 커스텀 ===== */
+.custom-marker {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2.5px solid white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25), 0 1px 3px rgba(0,0,0,0.15);
+  transition: transform 0.15s ease;
+}
+.custom-marker:hover { transform: scale(1.25); }
+.custom-marker.near-highlight {
+  border-color: #FFD700;
+  box-shadow: 0 0 0 3px rgba(255,215,0,0.4), 0 2px 8px rgba(0,0,0,0.25);
+  transform: scale(1.15);
+}
+
+/* 클러스터 스타일 오버라이드 */
+.marker-cluster-small,
+.marker-cluster-medium,
+.marker-cluster-large {
+  border: 3px solid white !important;
+  box-shadow: var(--shadow-md) !important;
+}
+.marker-cluster-small { background-color: rgba(255,75,43,0.15) !important; }
+.marker-cluster-small div { background-color: rgba(255,75,43,0.5) !important; }
+.marker-cluster-medium { background-color: rgba(255,75,43,0.20) !important; }
+.marker-cluster-medium div { background-color: rgba(255,75,43,0.65) !important; }
+.marker-cluster-large { background-color: rgba(255,75,43,0.25) !important; }
+.marker-cluster-large div { background-color: rgba(255,75,43,0.80) !important; }
+.marker-cluster div { color: white !important; font-weight: 700 !important; }
+
+/* ===== 스피너 ===== */
+#loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: white;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  transition: opacity 0.4s ease;
+}
+#loading-overlay.hidden { opacity: 0; pointer-events: none; }
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 14px; font-weight: 600; color: var(--color-text-secondary); }
+
+/* Leaflet z-index fix */
+.leaflet-top, .leaflet-bottom { z-index: 700 !important; }
+
+.popup-address { font-size: 11px; color: #6B6B80; margin: 4px 0; line-height: 1.35; }
+.popup-cat { display: inline-block; font-size: 10px; padding: 2px 7px; background: #F1F1F5; color: #4A4A55; border-radius: 4px; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<!-- 로딩 오버레이 -->
+<div id="loading-overlay">
+  <div style="width:44px;height:44px;background:var(--color-primary);border-radius:12px;display:flex;align-items:center;justify-content:center">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" fill="white"/>
+    </svg>
+  </div>
+  <div class="spinner"></div>
+  <div class="loading-text">맛집 565곳을 불러오는 중...</div>
+</div>
+
+<!-- 헤더 -->
+<header id="header">
+  <div id="header-logo">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" fill="white"/>
+    </svg>
+  </div>
+  <div id="header-title">
+    <h1>백년해방 맛집 지도</h1>
+    <div class="subtitle">전국 565개 맛집</div>
+  </div>
+  <a id="header-channel-link" href="https://youtube.com/channel/UCSW_W-SE71e9OhZwPEkEDLA" target="_blank" rel="noopener">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z"/>
+    </svg>
+    채널
+  </a>
+</header>
+
+<!-- 지도 -->
+<div id="map"></div>
+
+<!-- 지도 컨트롤 버튼 -->
+<div id="map-controls">
+  <button class="map-btn" id="btn-location" title="내 위치">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
+      <circle cx="12" cy="12" r="7" stroke-dasharray="2 2"/>
+    </svg>
+  </button>
+  <button class="map-btn" id="btn-reset" title="전체 보기">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+      <path d="M3 3v5h5"/>
+    </svg>
+  </button>
+</div>
+
+<!-- 바텀 시트 -->
+<div id="sheet" class="state-peek">
+  <div id="sheet-handle-area">
+    <div class="drag-handle"></div>
+  </div>
+
+  <div id="search-bar-wrap">
+    <div id="search-bar">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--color-text-muted)" stroke-width="2.2" stroke-linecap="round">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input type="text" id="search-input" placeholder="식당명, 지역으로 검색" autocomplete="off" autocorrect="off" spellcheck="false">
+      <button id="search-clear" aria-label="검색 지우기">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="white">
+          <path d="M8.5 1.5L1.5 8.5M1.5 1.5l7 7" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="filter-wrap">
+    <div id="filter-chips">
+      <!-- JS로 동적 생성 -->
+    </div>
+  </div>
+
+  <div id="list-area">
+    <div id="list-header">
+      <span id="list-count">0개 맛집</span>
+      <span id="list-sort-hint">클릭하면 지도에서 확인</span>
+    </div>
+    <div id="restaurant-list"></div>
+    <div id="empty-state">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        <path d="M8 11h6M11 8v6" stroke-linecap="round"/>
+      </svg>
+      <p>검색 결과가 없습니다</p>
+      <small>다른 검색어나 필터를 시도해보세요</small>
+    </div>
+  </div>
+</div>
+
+<!-- 토스트 -->
+<div id="toast"></div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+<script>
+// ===== 데이터 =====
+const RESTAURANTS = [{"name":"온랭","matched_name":"온랭","address":"서울 마포구 성산동 244-9 1층","category":"냉면","macro_region":"서울 마포구","sub_area":"망원","lat":37.55898616,"lng":126.91193565,"video_id":"o1eoim6ZMOw","video_title":"이번 주 다녀온 곳은 망원역입니다.","video_url":"https://www.youtube.com/watch?v=o1eoim6ZMOw","phone":"0503-7150-7914","place_id":"1187108627","area":"망원"},{"name":"헤키","matched_name":"헤키","address":"서울 마포구 망원동 379-25 1층","category":"일식","macro_region":"서울 마포구","sub_area":"망원","lat":37.55524089,"lng":126.90978977,"video_id":"o1eoim6ZMOw","video_title":"이번 주 다녀온 곳은 망원역입니다.","video_url":"https://www.youtube.com/watch?v=o1eoim6ZMOw","phone":"070-7773-9870","place_id":"1226420399","area":"망원"},{"name":"혜성유통","matched_name":"혜성유통","address":"서울 마포구 망원동 411-31 1층","category":"육류,고기","macro_region":"서울 마포구","sub_area":"망원","lat":37.55592461,"lng":126.90614248,"video_id":"o1eoim6ZMOw","video_title":"이번 주 다녀온 곳은 망원역입니다.","video_url":"https://www.youtube.com/watch?v=o1eoim6ZMOw","phone":"02-336-9945","place_id":"20195980","area":"망원"},{"name":"훈훈호떡","matched_name":"훈훈호떡","address":"서울 마포구 망원동 414-108 지하 1층","category":"간식","macro_region":"서울 마포구","sub_area":"망원","lat":37.55598964,"lng":126.90634611,"video_id":"o1eoim6ZMOw","video_title":"이번 주 다녀온 곳은 망원역입니다.","video_url":"https://www.youtube.com/watch?v=o1eoim6ZMOw","phone":"0502-5551-0016","place_id":"1110876391","area":"망원"},{"name":"진성만두","matched_name":"진성만두 망원본점","address":"서울 마포구 망원동 378-1 1층 2호","category":"분식","macro_region":"서울 마포구","sub_area":"망원","lat":37.55558685,"lng":126.90975088,"video_id":"o1eoim6ZMOw","video_title":"이번 주 다녀온 곳은 망원역입니다.","video_url":"https://www.youtube.com/watch?v=o1eoim6ZMOw","phone":"02-323-2443","place_id":"547879736","area":"망원"},{"name":"밀로밀","matched_name":"밀로밀","address":"서울 마포구 망원동 396-14 1층","category":"제과,베이커리","macro_region":"서울 마포구","sub_area":"망원","lat":37.55287792,"lng":126.90449856,"video_id":"o1eoim6ZMOw","video_title":"이번 주 다녀온 곳은 망원역입니다.","video_url":"https://www.youtube.com/watch?v=o1eoim6ZMOw","phone":"02-6953-9336","place_id":"1917968704","area":"망원"},{"name":"떡볶이 맛집","matched_name":"철길떡볶이","address":"서울 서대문구 충정로3가 150-1 1층","category":"떡볶이","macro_region":"서울 서대문구","sub_area":"서울 서대문구","lat":37.56255967,"lng":126.96346983,"video_id":"V_95q4_RYU0","video_title":"지난 2년간 다녀온","video_url":"https://www.youtube.com/watch?v=V_95q4_RYU0","phone":"02-364-3440","place_id":"25880887","area":"서울 서대문구"},{"name":"신촌","matched_name":"신촌형제갈비","address":"서울 서대문구 창천동 31-26 4층","category":"육류,고기","macro_region":"서울 서대문구","sub_area":"서울 서대문구","lat":37.55773651,"lng":126.93742228,"video_id":"V_95q4_RYU0","video_title":"지난 2년간 다녀온","video_url":"https://www.youtube.com/watch?v=V_95q4_RYU0","phone":"02-365-0001","place_id":"15937430","area":"서울 서대문구"},{"name":"어류도감","matched_name":"어류도감","address":"서울 강서구 가양동 155-3 1층","category":"해물,생선","macro_region":"서울 강서구","sub_area":"","lat":37.56947521,"lng":126.84100355,"video_id":"pHdnn5OehlU","video_title":"구독자분들께서 남겨주신 소중한 의견을 담아,","video_url":"https://www.youtube.com/watch?v=pHdnn5OehlU","phone":"","place_id":"422720009","area":""},{"name":"꾸이꾸이돼지촌","matched_name":"꾸이꾸이돼지촌쭈꾸미 본점","address":"서울 강서구 방화동 247-10 1층","category":"육류,고기","macro_region":"서울 강서구","sub_area":"","lat":37.56766824,"lng":126.81415152,"video_id":"pHdnn5OehlU","video_title":"구독자분들께서 남겨주신 소중한 의견을 담아,","video_url":"https://www.youtube.com/watch?v=pHdnn5OehlU","phone":"02-2662-3450","place_id":"2088745005","area":""},{"name":"마곡맛집한소쿰","matched_name":"마곡맛집한소쿰","address":"서울 강서구 마곡동 774-2 보타닉파크타워2 2층 212호","category":"한식","macro_region":"서울 강서구","sub_area":"","lat":37.55978158,"lng":126.83139029,"video_id":"pHdnn5OehlU","video_title":"구독자분들께서 남겨주신 소중한 의견을 담아,","video_url":"https://www.youtube.com/watch?v=pHdnn5OehlU","phone":"0503-7151-5005","place_id":"853810458","area":""},{"name":"서울식물원","matched_name":"서울식물원","address":"서울 강서구 마곡동 727-256","category":"수목원,식물원","macro_region":"서울 강서구","sub_area":"","lat":37.56939585,"lng":126.83503724,"video_id":"pHdnn5OehlU","video_title":"구독자분들께서 남겨주신 소중한 의견을 담아,","video_url":"https://www.youtube.com/watch?v=pHdnn5OehlU","phone":"02-2104-9716","place_id":"1164966384","area":""},{"name":"사이공윤다이","matched_name":"사이공윤다이","address":"서울 강서구 마곡동 757-3 마곡나루역보타닉비즈타워 2층 217~218호","category":"동남아음식","macro_region":"서울 강서구","sub_area":"","lat":37.56849482,"lng":126.82683727,"video_id":"pHdnn5OehlU","video_title":"구독자분들께서 남겨주신 소중한 의견을 담아,","video_url":"https://www.youtube.com/watch?v=pHdnn5OehlU","phone":"02-2093-6502","place_id":"1831702996","area":""},{"name":"다락회전초밥","matched_name":"다락회전초밥 당산점","address":"서울 영등포구 당산동5가 11-33 당산디오빌 2층","category":"초밥,롤","macro_region":"서울 영등포구","sub_area":"","lat":37.53324514,"lng":126.90229135,"video_id":"pHdnn5OehlU","video_title":"구독자분들께서 남겨주신 소중한 의견을 담아,","video_url":"https://www.youtube.com/watch?v=pHdnn5OehlU","phone":"","place_id":"1963489687","area":""},{"name":"문화촌초밥집","matched_name":"문화촌초밥집","address":"서울 서대문구 홍제동 266-21 1층","category":"초밥,롤","macro_region":"서울 서대문구","sub_area":"","lat":37.59163011,"lng":126.94654274,"video_id":"-CTcHh9jTVE","video_title":"서울 홍제동 맛집 6곳","video_url":"https://www.youtube.com/watch?v=-CTcHh9jTVE","phone":"02-394-6789","place_id":"2027800730","area":""},{"name":"유진치킨 홍제점","matched_name":"유진치킨 홍제점","address":"서울 서대문구 홍제동 266-119 1층","category":"치킨","macro_region":"서울 서대문구","sub_area":"","lat":37.59147042,"lng":126.94607635,"video_id":"-CTcHh9jTVE","video_title":"서울 홍제동 맛집 6곳","video_url":"https://www.youtube.com/watch?v=-CTcHh9jTVE","phone":"02-394-9300","place_id":"1069880159","area":""},{"name":"배나무집소반","matched_name":"배나무집소반","address":"서울 서대문구 홍제동 139","category":"한식","macro_region":"서울 서대문구","sub_area":"","lat":37.58636598,"lng":126.94736735,"video_id":"-CTcHh9jTVE","video_title":"서울 홍제동 맛집 6곳","video_url":"https://www.youtube.com/watch?v=-CTcHh9jTVE","phone":"02-738-8545","place_id":"1894743950","area":""},{"name":"오소이","matched_name":"오소이","address":"서울 서대문구 홍제동 156-1 1층","category":"일식","macro_region":"서울 서대문구","sub_area":"","lat":37.58598102,"lng":126.94684115,"video_id":"-CTcHh9jTVE","video_title":"서울 홍제동 맛집 6곳","video_url":"https://www.youtube.com/watch?v=-CTcHh9jTVE","phone":"","place_id":"1550999793","area":""},{"name":"횟집울릉도","matched_name":"횟집울릉도","address":"서울 은평구 녹번동 154-30 1층","category":"일식","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.60351672,"lng":126.92477059,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-356-8898","place_id":"26940039","area":"서울 은평"},{"name":"태백산생고기","matched_name":"태백산생고기","address":"서울 은평구 갈현동 460-17 대원빌딩 1층","category":"육류,고기","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.61701862,"lng":126.91883881,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-355-0632","place_id":"12092165","area":"서울 은평"},{"name":"브로밀","matched_name":"브로밀","address":"서울 은평구 대조동 14-322 1층","category":"이탈리안","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.60945227,"lng":126.9288486,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-358-5006","place_id":"233850824","area":"서울 은평"},{"name":"호야네양꼬치","matched_name":"호야네","address":"서울 은평구 대조동 15-134 1층","category":"양꼬치","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.60858745,"lng":126.92905781,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-356-2619","place_id":"1688041545","area":"서울 은평"},{"name":"일육오돈까스","matched_name":"일육오돈까스","address":"서울 은평구 역촌동 59-2 1층","category":"돈까스,우동","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.6053738,"lng":126.91439739,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-388-1020","place_id":"27432285","area":"서울 은평"},{"name":"옥토끼제면소","matched_name":"옥토끼제면소","address":"서울 은평구 응암동 113-35 1층","category":"일본식라면","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.59808804,"lng":126.9164191,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-6104-6353","place_id":"1203212068","area":"서울 은평"},{"name":"봉평메밀막국수","matched_name":"봉평메밀막국수 은평점","address":"서울 은평구 녹번동 83-8 1층","category":"국수","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.60325791,"lng":126.92728491,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"070-8815-5191","place_id":"19031072","area":"서울 은평"},{"name":"금평제면소","matched_name":"금평제면소","address":"서울 은평구 응암동 124-33 1층","category":"돈까스,우동","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.59504189,"lng":126.91783793,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"0502-5552-5806","place_id":"1271796261","area":"서울 은평"},{"name":"깡통그릴","matched_name":"깡통그릴","address":"서울 은평구 응암동 593-37 1층","category":"육류,고기","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.58759884,"lng":126.91410978,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"","place_id":"729640986","area":"서울 은평"},{"name":"아리산채","matched_name":"아리산채","address":"서울 은평구 증산동 223-28 1층","category":"중식","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.57854154,"lng":126.89974274,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-307-1687","place_id":"19293429","area":"서울 은평"},{"name":"달가득치킨","matched_name":"달가득치킨","address":"서울 은평구 대조동 197-2 1층","category":"치킨","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.61777961,"lng":126.92097988,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-6101-9390","place_id":"1477357176","area":"서울 은평"},{"name":"여수아구찜.탕","matched_name":"여수아구찜탕","address":"서울 은평구 역촌동 78-77 1층","category":"해물,생선","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.6026245,"lng":126.91024219,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-355-0879","place_id":"613592848","area":"서울 은평"},{"name":"충무칼국수","matched_name":"충무칼국수보쌈","address":"서울 은평구 녹번동 206 2층","category":"국수","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.60178327,"lng":126.92921601,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-3142-3198","place_id":"11616973","area":"서울 은평"},{"name":"산도토리임자탕","matched_name":"산도토리임자탕 응암점","address":"서울 은평구 응암동 84-29 1층","category":"한식","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.60221194,"lng":126.92596097,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-358-0202","place_id":"22710501","area":"서울 은평"},{"name":"대성각","matched_name":"대성각","address":"서울 은평구 녹번동 82-20 1층","category":"중국요리","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.603072,"lng":126.92678002,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-356-2194","place_id":"15691712","area":"서울 은평"},{"name":"오늘은보글부대","matched_name":"오늘은보글부대","address":"서울 은평구 응암동 580-19 1층","category":"찌개,전골","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.59319473,"lng":126.9151111,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-376-7907","place_id":"629004629","area":"서울 은평"},{"name":"맛스구","matched_name":"맛스구라멘","address":"서울 은평구 역촌동 85-46 1층","category":"일본식라면","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.5992402,"lng":126.91486643,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"","place_id":"741956418","area":"서울 은평"},{"name":"응암생고기전문점","matched_name":"맛집응암생고기전문","address":"서울 은평구 응암동 578-90 1층","category":"육류,고기","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.59389088,"lng":126.91721302,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-303-8633","place_id":"1015964851","area":"서울 은평"},{"name":"목노집","matched_name":"목노집","address":"서울 은평구 대조동 197-2 1층","category":"육류,고기","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.61777961,"lng":126.92098101,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-355-1652","place_id":"7884924","area":"서울 은평"},{"name":"삼오순대국","matched_name":"삼오순대국 불광역점","address":"서울 은평구 대조동 9-17 1층","category":"순대","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.61025912,"lng":126.92812752,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-387-2605","place_id":"11829911","area":"서울 은평"},{"name":"차이몬스터","matched_name":"차이몬스터","address":"서울 은평구 응암동 591-18 1층","category":"중국요리","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.58897552,"lng":126.91406291,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-305-7843","place_id":"26924140","area":"서울 은평"},{"name":"은평닭곰탕","matched_name":"은평닭곰탕","address":"서울 은평구 역촌동 83-4 1층","category":"곰탕","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.6022858,"lng":126.91521402,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"0502-5550-0839","place_id":"497259736","area":"서울 은평"},{"name":"시골순대국","matched_name":"시골순대국","address":"서울 은평구 갈현동 391-3 1층","category":"순대","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.62583431,"lng":126.9194636,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-387-4484","place_id":"13561221","area":"서울 은평"},{"name":"봉평옹심이메밀칼국수","matched_name":"봉평 옹심이메밀칼국수","address":"서울 은평구 불광동 310-238 1층","category":"국수","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.61971561,"lng":126.9220018,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-354-5121","place_id":"27275040","area":"서울 은평"},{"name":"연수식당","matched_name":"연수식당","address":"서울 은평구 갈현동 483-16 1층","category":"한식","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.61796458,"lng":126.9174276,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-352-7181","place_id":"16048285","area":"서울 은평"},{"name":"미소복원조양평해장국","matched_name":"미소복 원조양평해장국 직영점","address":"서울 은평구 갈현동 460-18","category":"해장국","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.61693836,"lng":126.91874262,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-354-5058","place_id":"16414674","area":"서울 은평"},{"name":"차돌식당","matched_name":"차돌식당","address":"서울 은평구 불광동 310-20 1층","category":"순대","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.62022441,"lng":126.92297993,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-356-3613","place_id":"21234659","area":"서울 은평"},{"name":"두꺼비집","matched_name":"원조두꺼비집불오징어","address":"서울 은평구 대조동 185-30 1-2층","category":"해물,생선","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.61810037,"lng":126.92100106,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-355-3130","place_id":"25037411","area":"서울 은평"},{"name":"여수집","matched_name":"여수식당","address":"서울 은평구 불광동 310-4 1층 193,247호","category":"한식","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.61964634,"lng":126.92216045,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"","place_id":"23406404","area":"서울 은평"},{"name":"강씨네닭발","matched_name":"강씨네닭발 본점","address":"서울 은평구 대조동 219-20 1층","category":"육류,고기","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.61584369,"lng":126.9187778,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-388-0045","place_id":"1726622446","area":"서울 은평"},{"name":"록갈비 연신내","matched_name":"록갈비","address":"서울 은평구 갈현동 431-1 1층","category":"육류,고기","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.62026409,"lng":126.91770257,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-6015-9169","place_id":"1052370187","area":"서울 은평"},{"name":"메밀마을","matched_name":"메밀마을","address":"서울 은평구 대조동 194-28 1층","category":"한식","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.61596729,"lng":126.92168857,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-386-8903","place_id":"10342053","area":"서울 은평"},{"name":"원마산아구찜","matched_name":"원마산아구찜","address":"서울 은평구 갈현동 403-6 1층","category":"해물,생선","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.62079446,"lng":126.91855719,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-6403-7788","place_id":"460463962","area":"서울 은평"},{"name":"옥탑방","matched_name":"옥탑방","address":"서울 은평구 역촌동 2-136 1층","category":"육류,고기","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.60977585,"lng":126.91924874,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"010-9127-6400","place_id":"1817798476","area":"서울 은평"},{"name":"구룡포막회","matched_name":"구룡포자연산막회","address":"서울 은평구 불광동 281-36 1층","category":"해물,생선","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.61090173,"lng":126.9314963,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-388-1278","place_id":"16051143","area":"서울 은평"},{"name":"먹거리곱창","matched_name":"먹거리곱창","address":"서울 은평구 대조동 38-1","category":"육류,고기","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.6087874,"lng":126.92601788,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-383-7292","place_id":"14088544","area":"서울 은평"},{"name":"풍천장어응암점","matched_name":"풍천장어 응암점","address":"서울 은평구 응암동 87-2 대진빌딩 1층","category":"해물,생선","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.60150176,"lng":126.9228407,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-351-9989","place_id":"2130728307","area":"서울 은평"},{"name":"장구통","matched_name":"장구통","address":"서울 은평구 역촌동 40-52","category":"치킨","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.60257794,"lng":126.92071059,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-389-6692","place_id":"27197008","area":"서울 은평"},{"name":"탕옌","matched_name":"탕옌","address":"서울 은평구 응암동 74-7 101동 1층 101호","category":"중국요리","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.60057921,"lng":126.93016725,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-6369-8989","place_id":"1113345355","area":"서울 은평"},{"name":"응암김밥","matched_name":"응암김밥","address":"서울 은평구 응암동 124-33 1층","category":"분식","macro_region":"서울 은평구","sub_area":"서울 은평","lat":37.59500585,"lng":126.91784703,"video_id":"ZaYjnTq3Pl0","video_title":"서울 은평구 맛집 모음집.","video_url":"https://www.youtube.com/watch?v=ZaYjnTq3Pl0","phone":"02-352-3629","place_id":"1133118564","area":"서울 은평"},{"name":"유튜브 최초공개 안주마을 통인전 오픈 소식!","matched_name":"소식","address":"서울 관악구 봉천동 1609-3 1층","category":"와인바","macro_region":"서울 관악구","sub_area":"","lat":37.47773179,"lng":126.95490759,"video_id":"aRb6mLwjsEI","video_title":"서울 경복궁 맛집 Best 6곳","video_url":"https://www.youtube.com/watch?v=aRb6mLwjsEI","phone":"0503-7152-5348","place_id":"1159348049","area":""},{"name":"고급스러운 분위기 '안주마을 통인점'","matched_name":"안주마을 통인점","address":"서울 종로구 통인동 159 1층","category":"한식","macro_region":"서울 종로구","sub_area":"","lat":37.57845444,"lng":126.97109795,"video_id":"aRb6mLwjsEI","video_title":"서울 경복궁 맛집 Best 6곳","video_url":"https://www.youtube.com/watch?v=aRb6mLwjsEI","phone":"","place_id":"2122912169","area":""},{"name":"수준 높은 돈카츠의 맛 '오봉카츠'","matched_name":"오봉카츠","address":"서울 종로구 체부동 125-2 1층","category":"돈까스,우동","macro_region":"서울 종로구","sub_area":"","lat":37.57778485,"lng":126.97048123,"video_id":"aRb6mLwjsEI","video_title":"서울 경복궁 맛집 Best 6곳","video_url":"https://www.youtube.com/watch?v=aRb6mLwjsEI","phone":"","place_id":"645844877","area":""},{"name":"속 편한 위로가 필요한 날 '옹시미 경복궁점'","matched_name":"옹시미 경복궁점","address":"서울 종로구 내자동 29-2 1층","category":"한식","macro_region":"서울 종로구","sub_area":"","lat":37.57629012,"lng":126.97057465,"video_id":"aRb6mLwjsEI","video_title":"서울 경복궁 맛집 Best 6곳","video_url":"https://www.youtube.com/watch?v=aRb6mLwjsEI","phone":"0507-1318-1444","place_id":"322366281","area":""},{"name":"전통과 현대의 세련된 만남 '내자상회'","matched_name":"내자상회","address":"서울 종로구 내자동 142 1층","category":"카페","macro_region":"서울 종로구","sub_area":"","lat":37.57578284,"lng":126.97048542,"video_id":"aRb6mLwjsEI","video_title":"서울 경복궁 맛집 Best 6곳","video_url":"https://www.youtube.com/watch?v=aRb6mLwjsEI","phone":"070-7755-0142","place_id":"212413668","area":""},{"name":"LA갈비의 정수 '심경희라라랜드'","matched_name":"심경희라라랜드 광화문","address":"서울 종로구 견지동 110 대성스카이렉스 1층 113-6호","category":"한식","macro_region":"서울 종로구","sub_area":"서울 종로","lat":37.57260021,"lng":126.98247448,"video_id":"xDm8rNIPXXs","video_title":"서울 종로 꼭 가봐야할 맛집 Best 8곳","video_url":"https://www.youtube.com/watch?v=xDm8rNIPXXs","phone":"02-730-8673","place_id":"779352240","area":"서울 종로"},{"name":"진짜 닭한마리 '백부장 닭한마리'","matched_name":"백부장집닭한마리 본관","address":"서울 종로구 공평동 129 1층","category":"육류,고기","macro_region":"서울 종로구","sub_area":"서울 종로","lat":37.57179656,"lng":126.98268975,"video_id":"xDm8rNIPXXs","video_title":"서울 종로 꼭 가봐야할 맛집 Best 8곳","video_url":"https://www.youtube.com/watch?v=xDm8rNIPXXs","phone":"02-732-2565","place_id":"8381402","area":"서울 종로"},{"name":"숙성회의 정수 '대물섬 종로점'","matched_name":"대물섬 종로점","address":"서울 종로구 관철동 43-12 남창빌딩 1층","category":"해물,생선","macro_region":"서울 종로구","sub_area":"서울 종로","lat":37.56906854,"lng":126.98411889,"video_id":"xDm8rNIPXXs","video_title":"서울 종로 꼭 가봐야할 맛집 Best 8곳","video_url":"https://www.youtube.com/watch?v=xDm8rNIPXXs","phone":"0507-1339-6231","place_id":"179737555","area":"서울 종로"},{"name":"항정수육과 순댓국 '관북'","matched_name":"관북","address":"서울 종로구 청진동 11-6 삼선빌딩 1-2층","category":"순대","macro_region":"서울 종로구","sub_area":"서울 종로","lat":37.5719125,"lng":126.98084006,"video_id":"xDm8rNIPXXs","video_title":"서울 종로 꼭 가봐야할 맛집 Best 8곳","video_url":"https://www.youtube.com/watch?v=xDm8rNIPXXs","phone":"010-9098-0027","place_id":"1840751741","area":"서울 종로"},{"name":"정통 낙곱새의 맛 '대성식당'","matched_name":"대성식당","address":"서울 종로구 장사동 127-1","category":"한식","macro_region":"서울 종로구","sub_area":"서울 종로","lat":37.56968487,"lng":126.9946889,"video_id":"xDm8rNIPXXs","video_title":"서울 종로 꼭 가봐야할 맛집 Best 8곳","video_url":"https://www.youtube.com/watch?v=xDm8rNIPXXs","phone":"0507-1407-5903","place_id":"15992450","area":"서울 종로"},{"name":"진짜 오리 라멘 '카나르'","matched_name":"카나르","address":"서울 종로구 익선동 58-1 1층","category":"일본식라면","macro_region":"서울 종로구","sub_area":"서울 종로","lat":37.57553565,"lng":126.99029617,"video_id":"xDm8rNIPXXs","video_title":"서울 종로 꼭 가봐야할 맛집 Best 8곳","video_url":"https://www.youtube.com/watch?v=xDm8rNIPXXs","phone":"0502-5552-9113","place_id":"673601993","area":"서울 종로"},{"name":"변치 않는 깊은 손맛 '뚝배기집'","matched_name":"뚝배기집","address":"서울 종로구 관철동 5-1 1층","category":"찌개,전골","macro_region":"서울 종로구","sub_area":"서울 종로","lat":37.56955559,"lng":126.98850847,"video_id":"xDm8rNIPXXs","video_title":"서울 종로 꼭 가봐야할 맛집 Best 8곳","video_url":"https://www.youtube.com/watch?v=xDm8rNIPXXs","phone":"02-2265-5744","place_id":"10374336","area":"서울 종로"},{"name":"최강 치즈쫄면순두부 '최일순짬뽕순두부'","matched_name":"최일순짬뽕순두부","address":"강원특별자치도 강릉시 안현동 862 1층","category":"두부전문점","macro_region":"강원 강릉","sub_area":"강릉","lat":37.80477137,"lng":128.90352178,"video_id":"C6uH0VFbwz0","video_title":"강원도 강릉 맛집 Best 8곳","video_url":"https://www.youtube.com/watch?v=C6uH0VFbwz0","phone":"033-644-2662","place_id":"16386752","area":"강릉"},{"name":"강릉 요즘 최고 핫플레이스 '강릉길감자'","matched_name":"강릉길감자","address":"강원특별자치도 강릉시 금학동 2-4","category":"식품","macro_region":"강원 강릉","sub_area":"강릉","lat":37.75464663,"lng":128.89862833,"video_id":"C6uH0VFbwz0","video_title":"강원도 강릉 맛집 Best 8곳","video_url":"https://www.youtube.com/watch?v=C6uH0VFbwz0","phone":"070-7537-1967","place_id":"1545071550","area":"강릉"},{"name":"강릉 가는 길 짜릿한 스릴 '대관령코스터'","matched_name":"알펜시아리조트 대관령코스터","address":"강원특별자치도 평창군 대관령면 용산리 425","category":"테마파크","macro_region":"강원","sub_area":"강릉","lat":37.65170589,"lng":128.67003893,"video_id":"C6uH0VFbwz0","video_title":"강원도 강릉 맛집 Best 8곳","video_url":"https://www.youtube.com/watch?v=C6uH0VFbwz0","phone":"","place_id":"819832481","area":"강릉"},{"name":"무조건 먹고 와야함 '시나미닭염통'","matched_name":"시나미닭염통","address":"강원특별자치도 강릉시 성남동 51-130 1층","category":"육류,고기","macro_region":"강원 강릉","sub_area":"강릉","lat":37.75410647,"lng":128.89927713,"video_id":"C6uH0VFbwz0","video_title":"강원도 강릉 맛집 Best 8곳","video_url":"https://www.youtube.com/watch?v=C6uH0VFbwz0","phone":"","place_id":"758133130","area":"강릉"},{"name":"개인적으로 닭강정 1등 '서울양계'","matched_name":"서울양계","address":"강원특별자치도 강릉시 강문동 191 1층","category":"닭강정","macro_region":"강원 강릉","sub_area":"강릉","lat":37.79528824,"lng":128.91707586,"video_id":"C6uH0VFbwz0","video_title":"강원도 강릉 맛집 Best 8곳","video_url":"https://www.youtube.com/watch?v=C6uH0VFbwz0","phone":"033-652-8292","place_id":"760986230","area":"강릉"},{"name":"강릉 피맥 필수 코스 '버드나무브루어리'","matched_name":"버드나무브루어리","address":"강원특별자치도 강릉시 홍제동 93-8","category":"호프,요리주점","macro_region":"강원 강릉","sub_area":"강릉","lat":37.7481624,"lng":128.88448549,"video_id":"C6uH0VFbwz0","video_title":"강원도 강릉 맛집 Best 8곳","video_url":"https://www.youtube.com/watch?v=C6uH0VFbwz0","phone":"033-920-9380","place_id":"27152913","area":"강릉"},{"name":"여행의 시간을 빛내주는 '홍제멘션강릉본점'","matched_name":"홍제멘션 본점","address":"강원특별자치도 강릉시 홍제동 74-6 1층","category":"테마카페","macro_region":"강원 강릉","sub_area":"강릉","lat":37.75024201,"lng":128.88608916,"video_id":"C6uH0VFbwz0","video_title":"강원도 강릉 맛집 Best 8곳","video_url":"https://www.youtube.com/watch?v=C6uH0VFbwz0","phone":"010-4624-8576","place_id":"1687501377","area":"강릉"},{"name":"매년 찾아가야 할 물회 맛집 '포항물회'","matched_name":"포항물회","address":"강원특별자치도 강릉시 옥천동 289 1층","category":"해물,생선","macro_region":"강원 강릉","sub_area":"강릉","lat":37.75830677,"lng":128.90013569,"video_id":"C6uH0VFbwz0","video_title":"강원도 강릉 맛집 Best 8곳","video_url":"https://www.youtube.com/watch?v=C6uH0VFbwz0","phone":"033-642-8332","place_id":"320564956","area":"강릉"},{"name":"여기 진짜임 '대화정 진짜해장국'","matched_name":"대화정진짜해장국","address":"서울 중구 을지로6가 18-85 1층","category":"해장국","macro_region":"서울 중구","sub_area":"서울 동대문","lat":37.56753766,"lng":127.00776495,"video_id":"P55JJRG52MY","video_title":"서울 동대문 진짜 맛집 6곳!","video_url":"https://www.youtube.com/watch?v=P55JJRG52MY","phone":"0507-1348-8485","place_id":"8895765","area":"서울 동대문"},{"name":"K-보양식 '천일삼계탕'","matched_name":"천일삼계탕","address":"서울 중구 을지로6가 18-187 2층","category":"육류,고기","macro_region":"서울 중구","sub_area":"서울 동대문","lat":37.56802786,"lng":127.00683682,"video_id":"P55JJRG52MY","video_title":"서울 동대문 진짜 맛집 6곳!","video_url":"https://www.youtube.com/watch?v=P55JJRG52MY","phone":"02-2273-9405","place_id":"21397712","area":"서울 동대문"},{"name":"집밥의 정석 '양지식당'","matched_name":"양지식당","address":"서울 성북구 안암동2가 118-2 1층","category":"찌개,전골","macro_region":"서울 성북구","sub_area":"서울 동대문","lat":37.58649224,"lng":127.02478393,"video_id":"P55JJRG52MY","video_title":"서울 동대문 진짜 맛집 6곳!","video_url":"https://www.youtube.com/watch?v=P55JJRG52MY","phone":"02-926-4472","place_id":"1252583290","area":"서울 동대문"},{"name":"최고 1등 족발 '와글와글족발'","matched_name":"와글와글족발","address":"서울 종로구 창신동 573-1 1층","category":"육류,고기","macro_region":"서울 종로구","sub_area":"서울 동대문","lat":37.57234874,"lng":127.01082182,"video_id":"P55JJRG52MY","video_title":"서울 동대문 진짜 맛집 6곳!","video_url":"https://www.youtube.com/watch?v=P55JJRG52MY","phone":"02-765-0319","place_id":"10624973","area":"서울 동대문"},{"name":"방문자체가 힐링 '차차티클럽'","matched_name":"차차티클럽 창신한옥","address":"서울 종로구 창신동 461-2","category":"카페","macro_region":"서울 종로구","sub_area":"서울 동대문","lat":37.57107828,"lng":127.01136498,"video_id":"P55JJRG52MY","video_title":"서울 동대문 진짜 맛집 6곳!","video_url":"https://www.youtube.com/watch?v=P55JJRG52MY","phone":"070-4239-0713","place_id":"1411540097","area":"서울 동대문"},{"name":"1.영덕회식당","matched_name":"영덕회식당","address":"서울 중구 충무로4가 56-3 1층","category":"해물,생선","macro_region":"서울 중구","sub_area":"","lat":37.56295724,"lng":126.99800342,"video_id":"QOBSP6jfaD0","video_title":"서울 시청역 부근 맛집 총정리!","video_url":"https://www.youtube.com/watch?v=QOBSP6jfaD0","phone":"02-2267-0942","place_id":"8002833","area":""},{"name":"2.인천집","matched_name":"인천집","address":"서울 중구 다동 60","category":"육류,고기","macro_region":"서울 중구","sub_area":"","lat":37.56780943,"lng":126.98125539,"video_id":"QOBSP6jfaD0","video_title":"서울 시청역 부근 맛집 총정리!","video_url":"https://www.youtube.com/watch?v=QOBSP6jfaD0","phone":"02-776-6583","place_id":"9352032","area":""},{"name":"3.충무집","matched_name":"충무집","address":"서울 중구 다동 123-1 1층","category":"해물,생선","macro_region":"서울 중구","sub_area":"","lat":37.56737798,"lng":126.98202068,"video_id":"QOBSP6jfaD0","video_title":"서울 시청역 부근 맛집 총정리!","video_url":"https://www.youtube.com/watch?v=QOBSP6jfaD0","phone":"010-2019-4088","place_id":"781644913","area":""},{"name":"5.만족오향족발","matched_name":"만족오향족발 구로디지털역점","address":"서울 구로구 구로동 1125-14 1층","category":"육류,고기","macro_region":"서울 구로구","sub_area":"","lat":37.48353216,"lng":126.90113616,"video_id":"QOBSP6jfaD0","video_title":"서울 시청역 부근 맛집 총정리!","video_url":"https://www.youtube.com/watch?v=QOBSP6jfaD0","phone":"02-859-2889","place_id":"130954323","area":""},{"name":"6.정든다락","matched_name":"정든다락너와나누다","address":"서울 양천구 신월동 544-8 1층","category":"호프,요리주점","macro_region":"서울 양천구","sub_area":"","lat":37.5184427,"lng":126.8417035,"video_id":"QOBSP6jfaD0","video_title":"서울 시청역 부근 맛집 총정리!","video_url":"https://www.youtube.com/watch?v=QOBSP6jfaD0","phone":"","place_id":"323952813","area":""},{"name":"7.리에제와플","matched_name":"덕수궁 리에제와플","address":"서울 중구 태평로2가 365 1층","category":"카페","macro_region":"서울 중구","sub_area":"","lat":37.56479294,"lng":126.97645247,"video_id":"QOBSP6jfaD0","video_title":"서울 시청역 부근 맛집 총정리!","video_url":"https://www.youtube.com/watch?v=QOBSP6jfaD0","phone":"02-318-5202","place_id":"243733683","area":""},{"name":"8.덕수정","matched_name":"덕수정","address":"서울 중구 정동 11-5 1층","category":"한식","macro_region":"서울 중구","sub_area":"","lat":37.5658841,"lng":126.97254031,"video_id":"QOBSP6jfaD0","video_title":"서울 시청역 부근 맛집 총정리!","video_url":"https://www.youtube.com/watch?v=QOBSP6jfaD0","phone":"02-755-0180","place_id":"10325577","area":""},{"name":"10.유림면","matched_name":"유림면 여의도TP타워점","address":"서울 영등포구 여의도동 27-2 TP타워 지하1층 B103호","category":"국수","macro_region":"서울 영등포구","sub_area":"","lat":37.5215438,"lng":126.92294121,"video_id":"QOBSP6jfaD0","video_title":"서울 시청역 부근 맛집 총정리!","video_url":"https://www.youtube.com/watch?v=QOBSP6jfaD0","phone":"","place_id":"1747938424","area":""},{"name":"11.삼우정","matched_name":"삼우정","address":"서울 중구 서소문동 106","category":"한정식","macro_region":"서울 중구","sub_area":"","lat":37.56324938,"lng":126.97571612,"video_id":"QOBSP6jfaD0","video_title":"서울 시청역 부근 맛집 총정리!","video_url":"https://www.youtube.com/watch?v=QOBSP6jfaD0","phone":"02-752-8044","place_id":"8352811","area":""},{"name":"12.청송옥","matched_name":"청송옥","address":"서울 중구 서소문동 52-1 1층","category":"국밥","macro_region":"서울 중구","sub_area":"","lat":37.56344432,"lng":126.97306073,"video_id":"QOBSP6jfaD0","video_title":"서울 시청역 부근 맛집 총정리!","video_url":"https://www.youtube.com/watch?v=QOBSP6jfaD0","phone":"02-754-1547","place_id":"10854191","area":""},{"name":"13.조조칼국수","matched_name":"조조칼국수 시청점","address":"서울 중구 서소문동 120-11 1층","category":"국수","macro_region":"서울 중구","sub_area":"","lat":37.56214085,"lng":126.97427679,"video_id":"QOBSP6jfaD0","video_title":"서울 시청역 부근 맛집 총정리!","video_url":"https://www.youtube.com/watch?v=QOBSP6jfaD0","phone":"02-6949-4333","place_id":"1932883175","area":""},{"name":"14.라운드앤드","matched_name":"라운드앤드","address":"서울 중구 정동 11-3 1층","category":"테마카페","macro_region":"서울 중구","sub_area":"","lat":37.56606066,"lng":126.97236367,"video_id":"QOBSP6jfaD0","video_title":"서울 시청역 부근 맛집 총정리!","video_url":"https://www.youtube.com/watch?v=QOBSP6jfaD0","phone":"","place_id":"1651034737","area":""},{"name":"15.전통찻집덕수궁","matched_name":"전통찻집덕수궁","address":"서울 중구 서소문동 53-6 2층","category":"전통찻집","macro_region":"서울 중구","sub_area":"","lat":37.56305514,"lng":126.97325215,"video_id":"QOBSP6jfaD0","video_title":"서울 시청역 부근 맛집 총정리!","video_url":"https://www.youtube.com/watch?v=QOBSP6jfaD0","phone":"02-773-0885","place_id":"13566339","area":""},{"name":"16.부산갈매기","matched_name":"부산갈매기","address":"서울 마포구 도화동 194-18","category":"육류,고기","macro_region":"서울 마포구","sub_area":"","lat":37.54176279,"lng":126.95091437,"video_id":"QOBSP6jfaD0","video_title":"서울 시청역 부근 맛집 총정리!","video_url":"https://www.youtube.com/watch?v=QOBSP6jfaD0","phone":"02-718-5462","place_id":"8374003","area":""},{"name":"17.송옥","matched_name":"송옥 여의도IFC몰점","address":"서울 영등포구 여의도동 23 IFC몰 지하3층 333호","category":"한식","macro_region":"서울 영등포구","sub_area":"","lat":37.52517789,"lng":126.92487874,"video_id":"QOBSP6jfaD0","video_title":"서울 시청역 부근 맛집 총정리!","video_url":"https://www.youtube.com/watch?v=QOBSP6jfaD0","phone":"02-6137-5297","place_id":"535283129","area":""},{"name":"18.농민백암순대 시청점","matched_name":"농민백암왕순대","address":"서울 영등포구 여의도동 14-21","category":"순대","macro_region":"서울 영등포구","sub_area":"","lat":37.52983431,"lng":126.91948434,"video_id":"QOBSP6jfaD0","video_title":"서울 시청역 부근 맛집 총정리!","video_url":"https://www.youtube.com/watch?v=QOBSP6jfaD0","phone":"02-783-6926","place_id":"9068961","area":""},{"name":"19.애성회관","matched_name":"애성회관","address":"서울 중구 북창동 93-36 대경빌딩 1층","category":"곰탕","macro_region":"서울 중구","sub_area":"","lat":37.56240937,"lng":126.97891384,"video_id":"QOBSP6jfaD0","video_title":"서울 시청역 부근 맛집 총정리!","video_url":"https://www.youtube.com/watch?v=QOBSP6jfaD0","phone":"02-352-0303","place_id":"15892869","area":""},{"name":"22.융태행제과점","matched_name":"융태행제과점","address":"서울 중구 북창동 94-9 1층","category":"제과,베이커리","macro_region":"서울 중구","sub_area":"","lat":37.56234251,"lng":126.977902,"video_id":"QOBSP6jfaD0","video_title":"서울 시청역 부근 맛집 총정리!","video_url":"https://www.youtube.com/watch?v=QOBSP6jfaD0","phone":"02-752-8531","place_id":"9341468","area":""},{"name":"4,000원 돈가스 '꼬숑돈까스'","matched_name":"꼬숑돈까스","address":"서울 서대문구 창천동 31-26 1층","category":"돈까스,우동","macro_region":"서울 서대문구","sub_area":"","lat":37.55790764,"lng":126.9372999,"video_id":"khxKE_pp99Y","video_title":"서울 가성비 끝판왕 맛집 5곳","video_url":"https://www.youtube.com/watch?v=khxKE_pp99Y","phone":"","place_id":"27144649","area":""},{"name":"3,000원 김치찌개 '따뜻한밥상'","matched_name":"따뜻한밥상 숭실대점","address":"서울 동작구 상도동 492-13 2층","category":"한식","macro_region":"서울 동작구","sub_area":"","lat":37.49589098,"lng":126.95331351,"video_id":"khxKE_pp99Y","video_title":"서울 가성비 끝판왕 맛집 5곳","video_url":"https://www.youtube.com/watch?v=khxKE_pp99Y","phone":"","place_id":"745217607","area":""},{"name":"200원 찐만두 '소문난만두'","matched_name":"소문난만두","address":"서울 광진구 자양동 617-2 1층","category":"분식","macro_region":"서울 광진구","sub_area":"","lat":37.53353737,"lng":127.08060563,"video_id":"khxKE_pp99Y","video_title":"서울 가성비 끝판왕 맛집 5곳","video_url":"https://www.youtube.com/watch?v=khxKE_pp99Y","phone":"02-444-2334","place_id":"19500585","area":""},{"name":"종로찌게마을","matched_name":"종로찌게마을","address":"서울 종로구 낙원동 53-1 1층","category":"찌개,전골","macro_region":"서울 종로구","sub_area":"종로3가, 5가, 종각역","lat":37.57364699,"lng":126.98833918,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-747-4518","place_id":"8074830","area":"종로3가, 5가, 종각역"},{"name":"을지면옥","matched_name":"을지면옥","address":"서울 종로구 낙원동 55-1 1층","category":"냉면","macro_region":"서울 종로구","sub_area":"종로3가, 5가, 종각역","lat":37.5737272,"lng":126.9885667,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-2266-7052","place_id":"1106001789","area":"종로3가, 5가, 종각역"},{"name":"이경문순대곱창","matched_name":"이경문순대곱창","address":"서울 종로구 돈의동 11-1 1층","category":"육류,고기","macro_region":"서울 종로구","sub_area":"종로3가, 5가, 종각역","lat":37.57308319,"lng":126.99083759,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-765-1532","place_id":"1165642981","area":"종로3가, 5가, 종각역"},{"name":"백제정육점","matched_name":"백제정육점","address":"서울 종로구 효제동 155 1층","category":"육류,고기","macro_region":"서울 종로구","sub_area":"종로3가, 5가, 종각역","lat":37.5726447,"lng":127.00395292,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-762-7491","place_id":"26967162","area":"종로3가, 5가, 종각역"},{"name":"효제루","matched_name":"효제루","address":"서울 종로구 효제동 301-2 1층","category":"중식","macro_region":"서울 종로구","sub_area":"종로3가, 5가, 종각역","lat":37.57268799,"lng":127.00219381,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-6448-0772","place_id":"1714070297","area":"종로3가, 5가, 종각역"},{"name":"거성닭한마리","matched_name":"명동닭한마리 본점","address":"서울 종로구 종로5가 265-8 1층","category":"육류,고기","macro_region":"서울 종로구","sub_area":"종로3가, 5가, 종각역","lat":37.57038131,"lng":127.00589525,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-2266-8249","place_id":"14822693","area":"종로3가, 5가, 종각역"},{"name":"수정식당","matched_name":"수정식당","address":"서울 구로구 구로동 112-3","category":"한식","macro_region":"서울 구로구","sub_area":"종로3가, 5가, 종각역","lat":37.50125707,"lng":126.88738009,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-862-1317","place_id":"1930901622","area":"종로3가, 5가, 종각역"},{"name":"배수사","matched_name":"일식배수사","address":"서울 양천구 목동 404-162 1층","category":"일식집","macro_region":"서울 양천구","sub_area":"종로3가, 5가, 종각역","lat":37.52344653,"lng":126.87612362,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-2652-3417","place_id":"17766921","area":"종로3가, 5가, 종각역"},{"name":"오죽이네","matched_name":"오죽이네","address":"서울 종로구 익선동 156","category":"육류,고기","macro_region":"서울 종로구","sub_area":"종로3가, 5가, 종각역","lat":37.57375803,"lng":126.99080355,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-741-8874","place_id":"16734831","area":"종로3가, 5가, 종각역"},{"name":"bar420","matched_name":"바420","address":"서울 종로구 관수동 161-7 1층","category":"와인바","macro_region":"서울 종로구","sub_area":"종로3가, 5가, 종각역","lat":37.56862762,"lng":126.98908817,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-2274-1456","place_id":"1800161504","area":"종로3가, 5가, 종각역"},{"name":"하얀고래","matched_name":"하얀고래","address":"서울 종로구 종로2가 8-4 1층 109~111호","category":"해물,생선","macro_region":"서울 종로구","sub_area":"종로3가, 5가, 종각역","lat":37.57048499,"lng":126.98472192,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"","place_id":"1473150989","area":"종로3가, 5가, 종각역"},{"name":"엄용백돼지국밥","matched_name":"엄용백돼지국밥 종각점","address":"서울 종로구 인사동 194-28 1층","category":"국밥","macro_region":"서울 종로구","sub_area":"종로3가, 5가, 종각역","lat":37.57189428,"lng":126.9857823,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"","place_id":"416934208","area":"종로3가, 5가, 종각역"},{"name":"모루카츠","matched_name":"모루카츠","address":"서울 종로구 종로1가 24 르메이에르 지하1층 117-1(홀) 116-1(포장)호","category":"돈까스,우동","macro_region":"서울 종로구","sub_area":"광화문","lat":37.5710906,"lng":126.97971509,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"070-4027-4963","place_id":"119873086","area":"광화문"},{"name":"광화문더덕순대","matched_name":"광화문더덕순대","address":"서울 종로구 당주동 38-2 지하1층","category":"순대","macro_region":"서울 종로구","sub_area":"광화문","lat":37.57106899,"lng":126.97506949,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-725-0054","place_id":"21340702","area":"광화문"},{"name":"진중우육면관","matched_name":"진중 우육면관 광화문점","address":"서울 종로구 청진동 39 1-2층","category":"중식","macro_region":"서울 종로구","sub_area":"광화문","lat":37.5720414,"lng":126.98123169,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"070-7543-4830","place_id":"1030931779","area":"광화문"},{"name":"꼬꼬뚝닭","matched_name":"꼬꼬뚝닭","address":"서울 종로구 도렴동 60 도렴빌딩 지하1층 16호","category":"육류,고기","macro_region":"서울 종로구","sub_area":"광화문","lat":37.57365286,"lng":126.97421283,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-720-7355","place_id":"24870334","area":"광화문"},{"name":"아이노가든키친","matched_name":"아이노가든키친","address":"서울 종로구 내수동 110-9 2층","category":"한식","macro_region":"서울 종로구","sub_area":"광화문","lat":37.57277821,"lng":126.97125863,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"","place_id":"1427790515","area":"광화문"},{"name":"커피원","matched_name":"커피원","address":"서울 종로구 신문로1가 238 신문로빌딩 지하1층","category":"테마카페","macro_region":"서울 종로구","sub_area":"광화문","lat":37.57135145,"lng":126.97298657,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"","place_id":"145128148","area":"광화문"},{"name":"곳온니플레이스MOFAT","matched_name":"곳온니플레이스","address":"서울 종로구 신문로1가 238 1층","category":"카페","macro_region":"서울 종로구","sub_area":"광화문","lat":37.57143881,"lng":126.97282693,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"","place_id":"519178380","area":"광화문"},{"name":"은성횟집","matched_name":"은성회집","address":"서울 종로구 종로4가 165-2 광장시장 45-1호","category":"해물,생선","macro_region":"서울 종로구","sub_area":"광장시장","lat":37.57040309,"lng":127.00014942,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-2267-6813","place_id":"11177923","area":"광장시장"},{"name":"박가네빈대떡","matched_name":"박가네빈대떡 본점","address":"서울 종로구 종로5가 138-10 광장시장 1층","category":"한식","macro_region":"서울 종로구","sub_area":"광장시장","lat":37.57051661,"lng":127.00084444,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-2264-0847","place_id":"12543498","area":"광장시장"},{"name":"모녀김밥","matched_name":"삼모녀꼬마김밥","address":"서울 종로구 예지동 2-1 광장시장 동부B 22호","category":"분식","macro_region":"서울 종로구","sub_area":"광장시장","lat":37.57011116,"lng":126.99970569,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-2266-1163","place_id":"935796291","area":"광장시장"},{"name":"고향칼국수","matched_name":"고향칼국수","address":"서울 종로구 종로5가 138-9","category":"국수","macro_region":"서울 종로구","sub_area":"광장시장","lat":37.57062743,"lng":127.00073351,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"","place_id":"152672811","area":"광장시장"},{"name":"강가네떡볶이","matched_name":"강가네떡볶이","address":"서울 종로구 종로4가 188 아케이트 101호","category":"떡볶이","macro_region":"서울 종로구","sub_area":"광장시장","lat":37.57061932,"lng":127.00042109,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"","place_id":"944354902","area":"광장시장"},{"name":"60년전통떡집","matched_name":"60년전통떡집","address":"서울 종로구 예지동 2-1","category":"떡,한과","macro_region":"서울 종로구","sub_area":"광장시장","lat":37.57025711,"lng":126.99837564,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"","place_id":"1624582296","area":"광장시장"},{"name":"퍼블릭가든","matched_name":"퍼블릭가든","address":"서울 종로구 예지동 269-25 세마빌딩 4층","category":"카페","macro_region":"서울 종로구","sub_area":"광장시장","lat":37.56966066,"lng":126.99969098,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"0507-1375-3402","place_id":"1427828053","area":"광장시장"},{"name":"승우네식당","matched_name":"승우네식당","address":"서울 종로구 종로4가 143 1층","category":"한식","macro_region":"서울 종로구","sub_area":"광장시장","lat":37.57047876,"lng":126.9988137,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-2268-8589","place_id":"21409927","area":"광장시장"},{"name":"이강순실비집","matched_name":"본점이강순실비집","address":"서울 종로구 관철동 11-11 1-2층","category":"해물,생선","macro_region":"서울 종로구","sub_area":"무교동 낙지","lat":37.56857774,"lng":126.98603648,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-737-7880","place_id":"27146280","area":"무교동 낙지"},{"name":"우정낙지","matched_name":"무교동우정낙지","address":"서울 영등포구 여의도동 53 우정상가 2층","category":"해물,생선","macro_region":"서울 영등포구","sub_area":"무교동 낙지","lat":37.51929005,"lng":126.93271698,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-761-7388","place_id":"8985516","area":"무교동 낙지"},{"name":"서촌계단집","matched_name":"서촌계단집","address":"서울 종로구 내자동 11-1 1층","category":"해물,생선","macro_region":"서울 종로구","sub_area":"경복궁","lat":37.57641377,"lng":126.97142477,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-737-8412","place_id":"19156993","area":"경복궁"},{"name":"토속촌삼계탕","matched_name":"토속촌삼계탕","address":"서울 종로구 체부동 85-1 1층","category":"육류,고기","macro_region":"서울 종로구","sub_area":"경복궁","lat":37.57772293,"lng":126.97149446,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-737-7444","place_id":"26545925","area":"경복궁"},{"name":"잘빠진메밀본점","matched_name":"잘빠진메밀 서촌점","address":"서울 종로구 통인동 120 1-2층","category":"국수","macro_region":"서울 종로구","sub_area":"경복궁","lat":37.57966895,"lng":126.97098201,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"070-4142-1214","place_id":"24869605","area":"경복궁"},{"name":"공기식당","matched_name":"공기식당","address":"서울 종로구 통인동 46-5 1층","category":"양식","macro_region":"서울 종로구","sub_area":"경복궁","lat":37.58032451,"lng":126.96952813,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"0507-1440-0930","place_id":"27391808","area":"경복궁"},{"name":"중국","matched_name":"중국","address":"서울 종로구 청운동 59-1 1층","category":"중국요리","macro_region":"서울 종로구","sub_area":"경복궁","lat":37.58619633,"lng":126.96972274,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"","place_id":"12513980","area":"경복궁"},{"name":"생선구이소반","matched_name":"생선구이소반","address":"서울 종로구 적선동 96 1층","category":"해물,생선","macro_region":"서울 종로구","sub_area":"경복궁","lat":37.57633762,"lng":126.97328363,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"","place_id":"937360469","area":"경복궁"},{"name":"깡통만두","matched_name":"깡통만두","address":"서울 종로구 재동 84-22 1층","category":"분식","macro_region":"서울 종로구","sub_area":"안국역","lat":37.57816524,"lng":126.98608451,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-794-4243","place_id":"19158798","area":"안국역"},{"name":"도마유즈라멘","matched_name":"도마유즈라멘","address":"서울 종로구 재동 84-6 1층","category":"일본식라면","macro_region":"서울 종로구","sub_area":"안국역","lat":37.57782651,"lng":126.98651702,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"070-8838-0365","place_id":"1104039439","area":"안국역"},{"name":"경춘자의라면땡기는날","matched_name":"경춘자의라면땡기는날","address":"서울 종로구 화동 138-21","category":"분식","macro_region":"서울 종로구","sub_area":"안국역","lat":37.57929457,"lng":126.98226687,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-733-3330","place_id":"10371445","area":"안국역"},{"name":"조선김밥","matched_name":"조선김밥","address":"서울 종로구 안국동 22-1 1층","category":"분식","macro_region":"서울 종로구","sub_area":"안국역","lat":37.57862242,"lng":126.98221382,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-723-7496","place_id":"20945113","area":"안국역"},{"name":"배스킨라빈스삼청마당점","matched_name":"배스킨라빈스 삼청마당점","address":"서울 종로구 화동 137-6 1층","category":"아이스크림","macro_region":"서울 종로구","sub_area":"안국역","lat":37.57901166,"lng":126.98226241,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-733-7226","place_id":"371661096","area":"안국역"},{"name":"유목민노마드","matched_name":"유목민노마드","address":"서울 종로구 관훈동 118-18","category":"유흥주점","macro_region":"서울 종로구","sub_area":"안국역","lat":37.57535388,"lng":126.98410623,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-733-1171","place_id":"20059695","area":"안국역"},{"name":"혜화칼국수","matched_name":"혜화칼국수","address":"서울 종로구 혜화동 84-3 1층","category":"국수","macro_region":"서울 종로구","sub_area":"혜화역","lat":37.58657925,"lng":127.001503,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-743-8212","place_id":"8176347","area":"혜화역"},{"name":"깔리","matched_name":"깔리","address":"서울 종로구 명륜4가 170-8 2층","category":"인도음식","macro_region":"서울 종로구","sub_area":"혜화역","lat":37.58247551,"lng":126.99926637,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-747-5050","place_id":"21332445","area":"혜화역"},{"name":"혜화도담","matched_name":"혜화도담","address":"서울 종로구 명륜4가 48-2 1층","category":"한식","macro_region":"서울 종로구","sub_area":"혜화역","lat":37.58302421,"lng":127.00043475,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-744-9850","place_id":"497931179","area":"혜화역"},{"name":"osso파스타","matched_name":"오쏘파스타","address":"서울 종로구 동숭동 129-130 1층","category":"이탈리안","macro_region":"서울 종로구","sub_area":"혜화역","lat":37.58054815,"lng":127.00573302,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"010-2817-9935","place_id":"1722441042","area":"혜화역"},{"name":"진아춘","matched_name":"진아춘","address":"서울 종로구 명륜4가 66-2","category":"중국요리","macro_region":"서울 종로구","sub_area":"혜화역","lat":37.58284131,"lng":127.00053324,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-765-5688","place_id":"13627376","area":"혜화역"},{"name":"칠린","matched_name":"칠린","address":"서울 종로구 명륜4가 167-2 1층","category":"카페","macro_region":"서울 종로구","sub_area":"혜화역","lat":37.58217007,"lng":126.99936147,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"0502-5550-4900","place_id":"1067900892","area":"혜화역"},{"name":"포보","matched_name":"포보 성균관대점","address":"서울 종로구 명륜2가 199-8 1층","category":"동남아음식","macro_region":"서울 종로구","sub_area":"혜화역","lat":37.58332153,"lng":126.99858594,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"070-4118-1187","place_id":"15526592","area":"혜화역"},{"name":"코야코","matched_name":"코야코","address":"서울 종로구 동숭동 128-5 1층","category":"떡볶이","macro_region":"서울 종로구","sub_area":"혜화역","lat":37.58127981,"lng":127.00433377,"video_id":"wjejRtf9Ako","video_title":"서울 종로 맛집 연말결산","video_url":"https://www.youtube.com/watch?v=wjejRtf9Ako","phone":"02-763-8587","place_id":"18361876","area":"혜화역"},{"name":"닭내장탕과 닭발 최고 맛집, 닭내장집","matched_name":"닭내장집","address":"서울 서대문구 남가좌동 291-28","category":"육류,고기","macro_region":"서울 서대문구","sub_area":"서울 서대문","lat":37.56950446,"lng":126.91574246,"video_id":"tOiG218VoSU","video_title":"서울 서대문구 남가좌동 맛집 투어","video_url":"https://www.youtube.com/watch?v=tOiG218VoSU","phone":"","place_id":"16042497","area":"서울 서대문"},{"name":"골목길 감성의 꼼장어 맛집, 모래내꼼장어","matched_name":"모래내꼼장어","address":"서울 서대문구 남가좌동 295-5 좌원상가 1층 102~103호","category":"해물,생선","macro_region":"서울 서대문구","sub_area":"서울 서대문","lat":37.57002947,"lng":126.91411864,"video_id":"tOiG218VoSU","video_title":"서울 서대문구 남가좌동 맛집 투어","video_url":"https://www.youtube.com/watch?v=tOiG218VoSU","phone":"","place_id":"808358814","area":"서울 서대문"},{"name":"진한국물과 계속 나오는 고기, 기쁨이네","matched_name":"기쁨이네","address":"서울 서대문구 남가좌동 345-4","category":"한식","macro_region":"서울 서대문구","sub_area":"서울 서대문","lat":37.57700035,"lng":126.92309919,"video_id":"tOiG218VoSU","video_title":"서울 서대문구 남가좌동 맛집 투어","video_url":"https://www.youtube.com/watch?v=tOiG218VoSU","phone":"","place_id":"21395128","area":"서울 서대문"},{"name":"속편하고 맛있는 중식, 락희안 가좌본점","matched_name":"락희안 가좌본점","address":"서울 서대문구 남가좌동 336-20 1-2층","category":"중국요리","macro_region":"서울 서대문구","sub_area":"서울 서대문","lat":37.57609825,"lng":126.92417103,"video_id":"tOiG218VoSU","video_title":"서울 서대문구 남가좌동 맛집 투어","video_url":"https://www.youtube.com/watch?v=tOiG218VoSU","phone":"0507-1375-7581","place_id":"21445025","area":"서울 서대문"},{"name":"계절의 온도가 느껴지는, 까페여름","matched_name":"까페여름","address":"서울 서대문구 남가좌동 337-21 1층","category":"카페","macro_region":"서울 서대문구","sub_area":"서울 서대문","lat":37.57646019,"lng":126.92377898,"video_id":"tOiG218VoSU","video_title":"서울 서대문구 남가좌동 맛집 투어","video_url":"https://www.youtube.com/watch?v=tOiG218VoSU","phone":"070-4107-9510","place_id":"1386841418","area":"서울 서대문"},{"name":"다른 세계에 온 듯한 분위기와 맛있는 짜이, 뭍","matched_name":"뭍","address":"서울 서대문구 남가좌동 337-1 1층","category":"테마카페","macro_region":"서울 서대문구","sub_area":"서울 서대문","lat":37.5765952,"lng":126.92356375,"video_id":"tOiG218VoSU","video_title":"서울 서대문구 남가좌동 맛집 투어","video_url":"https://www.youtube.com/watch?v=tOiG218VoSU","phone":"","place_id":"186960703","area":"서울 서대문"},{"name":"재료 본연의 맛과 최고 수타면, 가타쯔무리","matched_name":"가타쯔무리","address":"서울 서대문구 남가좌동 8-25 1층","category":"돈까스,우동","macro_region":"서울 서대문구","sub_area":"서울 서대문","lat":37.58322285,"lng":126.9234664,"video_id":"tOiG218VoSU","video_title":"서울 서대문구 남가좌동 맛집 투어","video_url":"https://www.youtube.com/watch?v=tOiG218VoSU","phone":"","place_id":"26409461","area":"서울 서대문"},{"name":"신선한 재료 짬뽕의 진수, 다오짬뽕","matched_name":"다오짬뽕","address":"경기 고양시 덕양구 화정동 914-10","category":"중국요리","macro_region":"경기 고양시","sub_area":"고양시","lat":37.64031924,"lng":126.83200948,"video_id":"BaU6Usvn_Ko","video_title":"경기도 고양시 덕양구 짬뽕 맛집 투어","video_url":"https://www.youtube.com/watch?v=BaU6Usvn_Ko","phone":"031-968-0516","place_id":"27155590","area":"고양시"},{"name":"매콤한 짬뽕의 깊은 얼큰함, 청수장","matched_name":"청수장","address":"경기 고양시 덕양구 향동동 559 모아프라자 2층","category":"중국요리","macro_region":"경기 고양시","sub_area":"고양시","lat":37.59586958,"lng":126.89273519,"video_id":"BaU6Usvn_Ko","video_title":"경기도 고양시 덕양구 짬뽕 맛집 투어","video_url":"https://www.youtube.com/watch?v=BaU6Usvn_Ko","phone":"02-3158-1999","place_id":"1767817512","area":"고양시"},{"name":"얼큰하고 깊은 맛의 짬뽕, 방울식당","matched_name":"방울식당","address":"경기 고양시 덕양구 원흥동 628 티오피클래식상가 C동 2층","category":"중식","macro_region":"경기 고양시","sub_area":"고양시","lat":37.64943531,"lng":126.87387044,"video_id":"BaU6Usvn_Ko","video_title":"경기도 고양시 덕양구 짬뽕 맛집 투어","video_url":"https://www.youtube.com/watch?v=BaU6Usvn_Ko","phone":"031-965-1635","place_id":"349689222","area":"고양시"},{"name":"신규 오픈 불짬뽕 전문점, 하이난짬뽕","matched_name":"하이난 짬뽕","address":"경기 고양시 덕양구 원흥동 741-4 파라다이스빌 1층","category":"중식","macro_region":"경기 고양시","sub_area":"고양시","lat":37.63575915,"lng":126.87374968,"video_id":"BaU6Usvn_Ko","video_title":"경기도 고양시 덕양구 짬뽕 맛집 투어","video_url":"https://www.youtube.com/watch?v=BaU6Usvn_Ko","phone":"0502-5553-2092","place_id":"747457035","area":"고양시"},{"name":"맛집/카페","matched_name":"카페가가","address":"서울 서대문구 미근동 82-1 1층","category":"카페","macro_region":"서울 서대문구","sub_area":"충정로","lat":37.56267709,"lng":126.96753082,"video_id":"7ejrWBY-M-c","video_title":"","video_url":"https://www.youtube.com/watch?v=7ejrWBY-M-c","phone":"02-313-5847","place_id":"811401699","area":"충정로"},{"name":"전국5대짬뽕","matched_name":"전국5대짬뽕홍시","address":"인천 부평구 십정동 280-20 1층","category":"중국요리","macro_region":"기타","sub_area":"짬뽕","lat":37.47419568,"lng":126.69595496,"video_id":"FY2jG3VIoXY","video_title":"일산 & 덕양구 짬뽕 맛집 3곳입니다!","video_url":"https://www.youtube.com/watch?v=FY2jG3VIoXY","phone":"","place_id":"1509359428","area":"짬뽕"},{"name":"대전한화생명볼파크","matched_name":"바로그집 대전한화생명볼파크점","address":"대전 중구 부사동 209-1","category":"","macro_region":"대전","sub_area":"","lat":36.31733691,"lng":127.42801371,"video_id":"jeUoELKzKoM","video_title":"야구장 근처 맛집들과","video_url":"https://www.youtube.com/watch?v=jeUoELKzKoM","phone":"","place_id":"1442034874","area":""},{"name":"dmc역 맛집","matched_name":"스시이안앤 DMC역점","address":"서울 은평구 증산동 223-13 2층","category":"초밥,롤","macro_region":"서울 은평구","sub_area":"은평","lat":37.5784432,"lng":126.9006542,"video_id":"aEeCb_5KnGM","video_title":"은평구 토박이가 추천하는 맛집!","video_url":"https://www.youtube.com/watch?v=aEeCb_5KnGM","phone":"02-305-8222","place_id":"1330133637","area":"은평"},{"name":"추가 맛집","matched_name":"추가추어탕","address":"서울 강서구 등촌동 629-1 2층","category":"해물,생선","macro_region":"서울 강서구","sub_area":"","lat":37.55882492,"lng":126.8582757,"video_id":"tBZSECYwBqs","video_title":"가보면 좋을 맛집들을 다녀왔는데요!","video_url":"https://www.youtube.com/watch?v=tBZSECYwBqs","phone":"070-4833-7226","place_id":"1179445281","area":""},{"name":"복정집","matched_name":"복정집","address":"서울 중구 충무로4가 306 남산센트럴자이아파트상가 1층 105호","category":"해물,생선","macro_region":"서울 중구","sub_area":"남산","lat":37.56253737,"lng":126.9976005,"video_id":"3aLGciE3k6M","video_title":"주변 충무로 맛집을 다녀왔습니다~!","video_url":"https://www.youtube.com/watch?v=3aLGciE3k6M","phone":"02-2269-1608","place_id":"13287670","area":"남산"},{"name":"필동면옥","matched_name":"필동면옥","address":"서울 중구 필동3가 1-5 1-2층","category":"냉면","macro_region":"서울 중구","sub_area":"남산","lat":37.56039838,"lng":126.99693959,"video_id":"3aLGciE3k6M","video_title":"주변 충무로 맛집을 다녀왔습니다~!","video_url":"https://www.youtube.com/watch?v=3aLGciE3k6M","phone":"02-2266-2611","place_id":"11231325","area":"남산"},{"name":"시래정각","matched_name":"시래정각","address":"서울 중구 필동1가 23-9 1층","category":"한식","macro_region":"서울 중구","sub_area":"남산","lat":37.56064954,"lng":126.99219955,"video_id":"3aLGciE3k6M","video_title":"주변 충무로 맛집을 다녀왔습니다~!","video_url":"https://www.youtube.com/watch?v=3aLGciE3k6M","phone":"02-2215-9864","place_id":"2056336563","area":"남산"},{"name":"충무로쭈꾸미불고기","matched_name":"충무로쭈꾸미불고기 본점","address":"서울 중구 필동1가 3-20 1층","category":"해물,생선","macro_region":"서울 중구","sub_area":"남산","lat":37.56173615,"lng":126.99220283,"video_id":"3aLGciE3k6M","video_title":"주변 충무로 맛집을 다녀왔습니다~!","video_url":"https://www.youtube.com/watch?v=3aLGciE3k6M","phone":"02-2279-0803","place_id":"8082703","area":"남산"},{"name":"무로망스","matched_name":"무로망스","address":"서울 중구 충무로3가 28-1","category":"양식","macro_region":"서울 중구","sub_area":"남산","lat":37.56297954,"lng":126.99240417,"video_id":"3aLGciE3k6M","video_title":"주변 충무로 맛집을 다녀왔습니다~!","video_url":"https://www.youtube.com/watch?v=3aLGciE3k6M","phone":"","place_id":"1189618190","area":"남산"},{"name":"충무로청국장","matched_name":"충무로청국장","address":"서울 중구 충무로4가 127-18 1층","category":"한식","macro_region":"서울 중구","sub_area":"남산","lat":37.56209222,"lng":126.99566734,"video_id":"3aLGciE3k6M","video_title":"주변 충무로 맛집을 다녀왔습니다~!","video_url":"https://www.youtube.com/watch?v=3aLGciE3k6M","phone":"02-2275-7903","place_id":"329920313","area":"남산"},{"name":"용씨네 누룽지통닭구이","matched_name":"용씨네 누룽지통닭구이","address":"서울 서대문구 홍제동 330-78","category":"육류,고기","macro_region":"서울 서대문구","sub_area":"홍제","lat":37.58875544,"lng":126.94353757,"video_id":"dpp0rkJPSBM","video_title":"","video_url":"https://www.youtube.com/watch?v=dpp0rkJPSBM","phone":"02-379-7343","place_id":"27505470","area":"홍제"},{"name":"화린","matched_name":"화린","address":"서울 서대문구 홍제동 158-44 1층","category":"중국요리","macro_region":"서울 서대문구","sub_area":"홍제","lat":37.58683207,"lng":126.94599365,"video_id":"dpp0rkJPSBM","video_title":"","video_url":"https://www.youtube.com/watch?v=dpp0rkJPSBM","phone":"02-395-2299","place_id":"1600136020","area":"홍제"},{"name":"대박포차","matched_name":"우동대박포차","address":"서울 서대문구 홍제동 300-16 1층","category":"실내포장마차","macro_region":"서울 서대문구","sub_area":"홍제","lat":37.59035934,"lng":126.94382169,"video_id":"dpp0rkJPSBM","video_title":"","video_url":"https://www.youtube.com/watch?v=dpp0rkJPSBM","phone":"","place_id":"16790920","area":"홍제"},{"name":"칠성산소금구이","matched_name":"칠성산소금구이","address":"서울 서대문구 홍제동 306-2 1층","category":"육류,고기","macro_region":"서울 서대문구","sub_area":"홍제","lat":37.58810768,"lng":126.94364902,"video_id":"dpp0rkJPSBM","video_title":"","video_url":"https://www.youtube.com/watch?v=dpp0rkJPSBM","phone":"02-3217-9592","place_id":"16529836","area":"홍제"},{"name":"홍제전집","matched_name":"홍제전집","address":"서울 서대문구 홍제동 177-2 1층","category":"한식","macro_region":"서울 서대문구","sub_area":"홍제","lat":37.58776222,"lng":126.94671534,"video_id":"dpp0rkJPSBM","video_title":"","video_url":"https://www.youtube.com/watch?v=dpp0rkJPSBM","phone":"02-725-6740","place_id":"2023942391","area":"홍제"},{"name":"담은식당","matched_name":"담은식당","address":"서울 서대문구 홍제동 301-11 1층","category":"찌개,전골","macro_region":"서울 서대문구","sub_area":"홍제","lat":37.59015283,"lng":126.94342103,"video_id":"dpp0rkJPSBM","video_title":"","video_url":"https://www.youtube.com/watch?v=dpp0rkJPSBM","phone":"02-391-6663","place_id":"2094925542","area":"홍제"},{"name":"유가네통닭","matched_name":"유가네통닭","address":"서울 서대문구 홍제동 298-9 1층 12~14호","category":"치킨","macro_region":"서울 서대문구","sub_area":"홍제","lat":37.59106529,"lng":126.94291647,"video_id":"dpp0rkJPSBM","video_title":"","video_url":"https://www.youtube.com/watch?v=dpp0rkJPSBM","phone":"","place_id":"950008873","area":"홍제"},{"name":"낙원집","matched_name":"낙원집","address":"서울 서대문구 홍제동 298-7","category":"분식","macro_region":"서울 서대문구","sub_area":"홍제","lat":37.59098617,"lng":126.9432732,"video_id":"dpp0rkJPSBM","video_title":"","video_url":"https://www.youtube.com/watch?v=dpp0rkJPSBM","phone":"","place_id":"21395603","area":"홍제"},{"name":"홍은손칼국수전문점","matched_name":"홍은손칼국수전문점","address":"서울 서대문구 홍은동 48-100 1층","category":"국수","macro_region":"서울 서대문구","sub_area":"홍제","lat":37.59400397,"lng":126.94600206,"video_id":"dpp0rkJPSBM","video_title":"","video_url":"https://www.youtube.com/watch?v=dpp0rkJPSBM","phone":"02-394-7729","place_id":"16047820","area":"홍제"},{"name":"토속순대국","matched_name":"토속순대국","address":"서울 서대문구 홍제동 366-7 1층","category":"순대","macro_region":"서울 서대문구","sub_area":"홍제","lat":37.58320605,"lng":126.93779948,"video_id":"dpp0rkJPSBM","video_title":"","video_url":"https://www.youtube.com/watch?v=dpp0rkJPSBM","phone":"02-396-5553","place_id":"55409162","area":"홍제"},{"name":"동아리화로구이","matched_name":"동아리화로구이","address":"전북특별자치도 군산시 지곡동 494-9","category":"육류,고기","macro_region":"전북 군산","sub_area":"군산","lat":35.95821147,"lng":126.70530318,"video_id":"3wltBUGuLa8","video_title":"친구의 강력 추천 맛집부터","video_url":"https://www.youtube.com/watch?v=3wltBUGuLa8","phone":"063-462-8592","place_id":"8281085","area":"군산"},{"name":"명궁칼국수","matched_name":"명궁칼국수","address":"전북특별자치도 군산시 영화동 24-3","category":"국수","macro_region":"전북 군산","sub_area":"군산","lat":35.98870983,"lng":126.70998703,"video_id":"3wltBUGuLa8","video_title":"친구의 강력 추천 맛집부터","video_url":"https://www.youtube.com/watch?v=3wltBUGuLa8","phone":"","place_id":"1150809401","area":"군산"},{"name":"국제반점","matched_name":"국제반점","address":"전북특별자치도 군산시 영화동 22-8 1층","category":"중국요리","macro_region":"전북 군산","sub_area":"군산","lat":35.98811001,"lng":126.71089855,"video_id":"3wltBUGuLa8","video_title":"친구의 강력 추천 맛집부터","video_url":"https://www.youtube.com/watch?v=3wltBUGuLa8","phone":"063-445-3768","place_id":"14881043","area":"군산"},{"name":"중앙식당","matched_name":"중앙식당","address":"전북특별자치도 군산시 금암동 3-6 1층","category":"해물,생선","macro_region":"전북 군산","sub_area":"군산","lat":35.98788949,"lng":126.72052921,"video_id":"3wltBUGuLa8","video_title":"친구의 강력 추천 맛집부터","video_url":"https://www.youtube.com/watch?v=3wltBUGuLa8","phone":"063-446-0471","place_id":"10773119","area":"군산"},{"name":"일풍식당","matched_name":"일풍식당","address":"전북특별자치도 군산시 문화동 539-18","category":"해물,생선","macro_region":"전북 군산","sub_area":"군산","lat":35.97167761,"lng":126.70672548,"video_id":"3wltBUGuLa8","video_title":"친구의 강력 추천 맛집부터","video_url":"https://www.youtube.com/watch?v=3wltBUGuLa8","phone":"063-442-6098","place_id":"27174411","area":"군산"},{"name":"일흥옥","matched_name":"일흥옥","address":"전북특별자치도 군산시 월명동 6-10 1층","category":"국밥","macro_region":"전북 군산","sub_area":"군산","lat":35.98514982,"lng":126.70918393,"video_id":"3wltBUGuLa8","video_title":"친구의 강력 추천 맛집부터","video_url":"https://www.youtube.com/watch?v=3wltBUGuLa8","phone":"063-445-3580","place_id":"11544056","area":"군산"},{"name":"뻥코생곱창","matched_name":"뻥코생곱창","address":"전북특별자치도 군산시 삼학동 812-39","category":"육류,고기","macro_region":"전북 군산","sub_area":"군산","lat":35.97663857,"lng":126.70917967,"video_id":"3wltBUGuLa8","video_title":"친구의 강력 추천 맛집부터","video_url":"https://www.youtube.com/watch?v=3wltBUGuLa8","phone":"063-461-4092","place_id":"23956265","area":"군산"},{"name":"이성당","matched_name":"이성당 본점","address":"전북특별자치도 군산시 중앙로1가 12-2 1층","category":"제과,베이커리","macro_region":"전북 군산","sub_area":"군산","lat":35.98720064,"lng":126.71126337,"video_id":"3wltBUGuLa8","video_title":"친구의 강력 추천 맛집부터","video_url":"https://www.youtube.com/watch?v=3wltBUGuLa8","phone":"063-445-2772","place_id":"8055670","area":"군산"},{"name":"카페틈","matched_name":"카페 틈","address":"전북특별자치도 군산시 영화동 11-9 1층","category":"카페","macro_region":"전북 군산","sub_area":"군산","lat":35.98931619,"lng":126.71141424,"video_id":"3wltBUGuLa8","video_title":"친구의 강력 추천 맛집부터","video_url":"https://www.youtube.com/watch?v=3wltBUGuLa8","phone":"","place_id":"26921474","area":"군산"},{"name":"약수순대국","matched_name":"약수순대국감자탕","address":"서울 동작구 상도동 208-33","category":"순대","macro_region":"서울 동작구","sub_area":"이번주","lat":37.49885009,"lng":126.94346511,"video_id":"tUPtwN2xrLg","video_title":"이번주 맛집 리뷰를 위해","video_url":"https://www.youtube.com/watch?v=tUPtwN2xrLg","phone":"02-812-5578","place_id":"16331437","area":"이번주"},{"name":"원조호남순대국","matched_name":"원조호남순대국","address":"서울 중구 신당동 372-31 신동호빌딩 1층","category":"순대","macro_region":"서울 중구","sub_area":"이번주","lat":37.55291236,"lng":127.01166099,"video_id":"tUPtwN2xrLg","video_title":"이번주 맛집 리뷰를 위해","video_url":"https://www.youtube.com/watch?v=tUPtwN2xrLg","phone":"02-2233-0755","place_id":"16875396","area":"이번주"},{"name":"해남순대국","matched_name":"해남순대국","address":"서울 중구 신당동 366-9 1층","category":"순대","macro_region":"서울 중구","sub_area":"이번주","lat":37.55286207,"lng":127.00986838,"video_id":"tUPtwN2xrLg","video_title":"이번주 맛집 리뷰를 위해","video_url":"https://www.youtube.com/watch?v=tUPtwN2xrLg","phone":"","place_id":"27439556","area":"이번주"},{"name":"두부사랑","matched_name":"두부사랑","address":"서울 영등포구 신길동 4364 1층","category":"두부전문점","macro_region":"서울 영등포구","sub_area":"이번주","lat":37.49764704,"lng":126.9171475,"video_id":"tUPtwN2xrLg","video_title":"이번주 맛집 리뷰를 위해","video_url":"https://www.youtube.com/watch?v=tUPtwN2xrLg","phone":"02-833-1311","place_id":"1460840237","area":"이번주"},{"name":"진남포면옥","matched_name":"진남포면옥","address":"서울 중구 신당동 368-89 청라빌딩 2,3층","category":"국수","macro_region":"서울 중구","sub_area":"이번주","lat":37.55342427,"lng":127.01015817,"video_id":"tUPtwN2xrLg","video_title":"이번주 맛집 리뷰를 위해","video_url":"https://www.youtube.com/watch?v=tUPtwN2xrLg","phone":"02-2252-2457","place_id":"8076538","area":"이번주"},{"name":"리사르커피","matched_name":"리사르커피 제중원점","address":"서울 중구 남대문로5가 84-11 연세세브란스빌딩 1층 108호","category":"커피전문점","macro_region":"서울 중구","sub_area":"이번주","lat":37.55711136,"lng":126.97369114,"video_id":"tUPtwN2xrLg","video_title":"이번주 맛집 리뷰를 위해","video_url":"https://www.youtube.com/watch?v=tUPtwN2xrLg","phone":"070-8800-5538","place_id":"1109731150","area":"이번주"},{"name":"경동시장","matched_name":"경동시장 평양냉면","address":"서울 동대문구 제기동 1013 2층","category":"냉면","macro_region":"서울 동대문구","sub_area":"","lat":37.57895573,"lng":127.04007596,"video_id":"rHc7IcqIdwo","video_title":"많은 맛집으로 유명한 곳이죠~!","video_url":"https://www.youtube.com/watch?v=rHc7IcqIdwo","phone":"02-965-8258","place_id":"810920158","area":""},{"name":"포천메밀냉면","matched_name":"포천메밀냉면","address":"서울 동대문구 제기동 646 1층","category":"한식","macro_region":"서울 동대문구","sub_area":"","lat":37.5805392,"lng":127.04145799,"video_id":"rHc7IcqIdwo","video_title":"많은 맛집으로 유명한 곳이죠~!","video_url":"https://www.youtube.com/watch?v=rHc7IcqIdwo","phone":"02-966-7248","place_id":"16297405","area":""},{"name":"일광족발","matched_name":"일광족발","address":"서울 동대문구 제기동 635-11 1층 나-35호","category":"육류,고기","macro_region":"서울 동대문구","sub_area":"","lat":37.58023624,"lng":127.04209973,"video_id":"rHc7IcqIdwo","video_title":"많은 맛집으로 유명한 곳이죠~!","video_url":"https://www.youtube.com/watch?v=rHc7IcqIdwo","phone":"02-964-7527","place_id":"97140942","area":""},{"name":"원조식당","matched_name":"원조소문난뼈해장국 전주식당","address":"서울 양천구 목동 730-6 1층","category":"해장국","macro_region":"서울 양천구","sub_area":"","lat":37.53714989,"lng":126.8638767,"video_id":"rHc7IcqIdwo","video_title":"많은 맛집으로 유명한 곳이죠~!","video_url":"https://www.youtube.com/watch?v=rHc7IcqIdwo","phone":"02-2643-0494","place_id":"13292573","area":""},{"name":"오동통닭","matched_name":"오동통닭","address":"서울 동대문구 제기동 635-3 1층","category":"치킨","macro_region":"서울 동대문구","sub_area":"","lat":37.58045039,"lng":127.04289006,"video_id":"rHc7IcqIdwo","video_title":"많은 맛집으로 유명한 곳이죠~!","video_url":"https://www.youtube.com/watch?v=rHc7IcqIdwo","phone":"02-966-8991","place_id":"627401818","area":""},{"name":"안동집손칼국시","matched_name":"안동집","address":"서울 동대문구 제기동 1019 경동시장 신관 지하1층 8-2호","category":"국수","macro_region":"서울 동대문구","sub_area":"","lat":37.5793938,"lng":127.03953845,"video_id":"rHc7IcqIdwo","video_title":"많은 맛집으로 유명한 곳이죠~!","video_url":"https://www.youtube.com/watch?v=rHc7IcqIdwo","phone":"02-965-3948","place_id":"15629433","area":""},{"name":"스타벅스 경동1960점","matched_name":"스타벅스 경동1960점","address":"서울 동대문구 제기동 1019 경동시장 본관 3-4층","category":"커피전문점","macro_region":"서울 동대문구","sub_area":"","lat":37.57961212,"lng":127.03868043,"video_id":"rHc7IcqIdwo","video_title":"많은 맛집으로 유명한 곳이죠~!","video_url":"https://www.youtube.com/watch?v=rHc7IcqIdwo","phone":"1522-3232","place_id":"609996995","area":""},{"name":"1,2번 출구","matched_name":"을지로입구역 2호선 2번출구","address":"서울 중구 을지로1가 116-2","category":"지하철출구","macro_region":"서울 중구","sub_area":"혜화","lat":37.56643739,"lng":126.98238764,"video_id":"PLsRDJDsi4Q","video_title":"유명한 혜화역 부근 맛집들을","video_url":"https://www.youtube.com/watch?v=PLsRDJDsi4Q","phone":"","place_id":"27453922","area":"혜화"},{"name":"3,4번 출구","matched_name":"종로3가역 5호선 4번출구","address":"서울 종로구 낙원동 117-4","category":"지하철출구","macro_region":"서울 종로구","sub_area":"혜화","lat":37.57251996,"lng":126.98952908,"video_id":"PLsRDJDsi4Q","video_title":"유명한 혜화역 부근 맛집들을","video_url":"https://www.youtube.com/watch?v=PLsRDJDsi4Q","phone":"","place_id":"8080456","area":"혜화"},{"name":"혜화칼국수","matched_name":"혜화칼국수","address":"서울 종로구 혜화동 84-3 1층","category":"국수","macro_region":"서울 종로구","sub_area":"혜화","lat":37.58657925,"lng":127.001503,"video_id":"PLsRDJDsi4Q","video_title":"유명한 혜화역 부근 맛집들을","video_url":"https://www.youtube.com/watch?v=PLsRDJDsi4Q","phone":"02-743-8212","place_id":"8176347","area":"혜화"},{"name":"깔리","matched_name":"깔리","address":"서울 종로구 명륜4가 170-8 2층","category":"인도음식","macro_region":"서울 종로구","sub_area":"혜화","lat":37.58247551,"lng":126.99926637,"video_id":"PLsRDJDsi4Q","video_title":"유명한 혜화역 부근 맛집들을","video_url":"https://www.youtube.com/watch?v=PLsRDJDsi4Q","phone":"02-747-5050","place_id":"21332445","area":"혜화"},{"name":"엘파소","matched_name":"엘파소커피","address":"서울 강북구 미아동 83-4 1층","category":"카페","macro_region":"서울 강북구","sub_area":"혜화","lat":37.61417175,"lng":127.03478512,"video_id":"PLsRDJDsi4Q","video_title":"유명한 혜화역 부근 맛집들을","video_url":"https://www.youtube.com/watch?v=PLsRDJDsi4Q","phone":"02-989-2017","place_id":"868892034","area":"혜화"},{"name":"혜화도담","matched_name":"혜화도담","address":"서울 종로구 명륜4가 48-2 1층","category":"한식","macro_region":"서울 종로구","sub_area":"혜화","lat":37.58302421,"lng":127.00043475,"video_id":"PLsRDJDsi4Q","video_title":"유명한 혜화역 부근 맛집들을","video_url":"https://www.youtube.com/watch?v=PLsRDJDsi4Q","phone":"02-744-9850","place_id":"497931179","area":"혜화"},{"name":"osso파스타","matched_name":"오쏘파스타","address":"서울 종로구 동숭동 129-130 1층","category":"이탈리안","macro_region":"서울 종로구","sub_area":"혜화","lat":37.58054815,"lng":127.00573302,"video_id":"PLsRDJDsi4Q","video_title":"유명한 혜화역 부근 맛집들을","video_url":"https://www.youtube.com/watch?v=PLsRDJDsi4Q","phone":"010-2817-9935","place_id":"1722441042","area":"혜화"},{"name":"진아춘","matched_name":"진아춘","address":"서울 종로구 명륜4가 66-2","category":"중국요리","macro_region":"서울 종로구","sub_area":"혜화","lat":37.58284131,"lng":127.00053324,"video_id":"PLsRDJDsi4Q","video_title":"유명한 혜화역 부근 맛집들을","video_url":"https://www.youtube.com/watch?v=PLsRDJDsi4Q","phone":"02-765-5688","place_id":"13627376","area":"혜화"},{"name":"칠린","matched_name":"칠린","address":"서울 종로구 명륜4가 167-2 1층","category":"카페","macro_region":"서울 종로구","sub_area":"혜화","lat":37.58217007,"lng":126.99936147,"video_id":"PLsRDJDsi4Q","video_title":"유명한 혜화역 부근 맛집들을","video_url":"https://www.youtube.com/watch?v=PLsRDJDsi4Q","phone":"0502-5550-4900","place_id":"1067900892","area":"혜화"},{"name":"떡볶이","matched_name":"문래동즉석떡볶이","address":"서울 영등포구 문래동3가 55-20 에이스하이테크시티 지하1층 109호","category":"떡볶이","macro_region":"서울 영등포구","sub_area":"","lat":37.51443077,"lng":126.89949489,"video_id":"Fy99BUBVlig","video_title":"","video_url":"https://www.youtube.com/watch?v=Fy99BUBVlig","phone":"","place_id":"526542391","area":""},{"name":"마복림할머니집","matched_name":"마복림할머니집","address":"서울 중구 신당동 292-112 1층","category":"떡볶이","macro_region":"서울 중구","sub_area":"","lat":37.56327524,"lng":127.01512154,"video_id":"Fy99BUBVlig","video_title":"","video_url":"https://www.youtube.com/watch?v=Fy99BUBVlig","phone":"02-2232-8930","place_id":"25036918","area":""},{"name":"우정","matched_name":"우정갈비","address":"서울 영등포구 영등포동3가 8 남서울빌딩 1층","category":"육류,고기","macro_region":"서울 영등포구","sub_area":"","lat":37.51851309,"lng":126.90590657,"video_id":"Fy99BUBVlig","video_title":"","video_url":"https://www.youtube.com/watch?v=Fy99BUBVlig","phone":"02-2636-9658","place_id":"27340183","area":""},{"name":"종로맛집","matched_name":"종로도담","address":"서울 종로구 청진동 46 1-2층","category":"한식","macro_region":"서울 종로구","sub_area":"종로","lat":37.57205405,"lng":126.98140941,"video_id":"crT8kBEjrJM","video_title":"종로 맛집 10곳에 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=crT8kBEjrJM","phone":"0507-1321-9850","place_id":"439177229","area":"종로"},{"name":"백제정육점","matched_name":"백제정육점","address":"서울 종로구 효제동 155 1층","category":"육류,고기","macro_region":"서울 종로구","sub_area":"종로","lat":37.5726447,"lng":127.00395292,"video_id":"crT8kBEjrJM","video_title":"종로 맛집 10곳에 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=crT8kBEjrJM","phone":"02-762-7491","place_id":"26967162","area":"종로"},{"name":"효제루","matched_name":"효제루","address":"서울 종로구 효제동 301-2 1층","category":"중식","macro_region":"서울 종로구","sub_area":"종로","lat":37.57268799,"lng":127.00219381,"video_id":"crT8kBEjrJM","video_title":"종로 맛집 10곳에 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=crT8kBEjrJM","phone":"02-6448-0772","place_id":"1714070297","area":"종로"},{"name":"거성닭한마리","matched_name":"명동닭한마리 본점","address":"서울 종로구 종로5가 265-8 1층","category":"육류,고기","macro_region":"서울 종로구","sub_area":"종로","lat":37.57038131,"lng":127.00589525,"video_id":"crT8kBEjrJM","video_title":"종로 맛집 10곳에 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=crT8kBEjrJM","phone":"02-2266-8249","place_id":"14822693","area":"종로"},{"name":"수정식당","matched_name":"수정식당","address":"서울 종로구 관수동 3-6 1,2층","category":"쌈밥","macro_region":"서울 종로구","sub_area":"종로","lat":37.56974482,"lng":126.98875974,"video_id":"crT8kBEjrJM","video_title":"종로 맛집 10곳에 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=crT8kBEjrJM","phone":"02-2279-4319","place_id":"2109438998","area":"종로"},{"name":"배수사","matched_name":"배수사","address":"서울 종로구 익선동 81","category":"일본식주점","macro_region":"서울 종로구","sub_area":"종로","lat":37.57470946,"lng":126.99047967,"video_id":"crT8kBEjrJM","video_title":"종로 맛집 10곳에 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=crT8kBEjrJM","phone":"","place_id":"1425565816","area":"종로"},{"name":"오죽이네","matched_name":"오죽이네","address":"서울 종로구 익선동 156","category":"육류,고기","macro_region":"서울 종로구","sub_area":"종로","lat":37.57375803,"lng":126.99080355,"video_id":"crT8kBEjrJM","video_title":"종로 맛집 10곳에 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=crT8kBEjrJM","phone":"02-741-8874","place_id":"16734831","area":"종로"},{"name":"bar420","matched_name":"바420","address":"서울 종로구 관수동 161-7 1층","category":"와인바","macro_region":"서울 종로구","sub_area":"종로","lat":37.56862762,"lng":126.98908817,"video_id":"crT8kBEjrJM","video_title":"종로 맛집 10곳에 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=crT8kBEjrJM","phone":"02-2274-1456","place_id":"1800161504","area":"종로"},{"name":"하얀고래","matched_name":"하얀고래","address":"서울 종로구 종로2가 8-4 1층 109~111호","category":"해물,생선","macro_region":"서울 종로구","sub_area":"종로","lat":37.57048499,"lng":126.98472192,"video_id":"crT8kBEjrJM","video_title":"종로 맛집 10곳에 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=crT8kBEjrJM","phone":"","place_id":"1473150989","area":"종로"},{"name":"엄용백돼지국밥","matched_name":"엄용백돼지국밥 종각점","address":"서울 종로구 인사동 194-28 1층","category":"국밥","macro_region":"서울 종로구","sub_area":"종로","lat":37.57189428,"lng":126.9857823,"video_id":"crT8kBEjrJM","video_title":"종로 맛집 10곳에 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=crT8kBEjrJM","phone":"","place_id":"416934208","area":"종로"},{"name":"서린낙지","matched_name":"서린낙지","address":"서울 종로구 청진동 146 르메이에르종로타운 2층","category":"해물,생선","macro_region":"서울 종로구","sub_area":"종로","lat":37.57059603,"lng":126.98014085,"video_id":"crT8kBEjrJM","video_title":"종로 맛집 10곳에 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=crT8kBEjrJM","phone":"02-735-0670","place_id":"7937472","area":"종로"},{"name":"박가삼거리부대찌개","matched_name":"박가삼거리부대찌개","address":"경기 파주시 문산읍 선유리 950-18 1층","category":"찌개,전골","macro_region":"경기 파주시","sub_area":"파주 문산","lat":37.86060194,"lng":126.78736344,"video_id":"4xuEYQwVArA","video_title":"","video_url":"https://www.youtube.com/watch?v=4xuEYQwVArA","phone":"031-952-3431","place_id":"1946244099","area":"파주 문산"},{"name":"문산참숯가마","matched_name":"문산참숯가마","address":"경기 파주시 문산읍 당동리 50-4","category":"찜질방","macro_region":"경기 파주시","sub_area":"파주 문산","lat":37.87069598,"lng":126.78726284,"video_id":"4xuEYQwVArA","video_title":"","video_url":"https://www.youtube.com/watch?v=4xuEYQwVArA","phone":"031-952-3182","place_id":"7877242","area":"파주 문산"},{"name":"소풍농월","matched_name":"소풍농월","address":"경기 파주시 문산읍 당동리 52-1 1-2동 1층","category":"커피전문점","macro_region":"경기 파주시","sub_area":"파주 문산","lat":37.8706221,"lng":126.78527752,"video_id":"4xuEYQwVArA","video_title":"","video_url":"https://www.youtube.com/watch?v=4xuEYQwVArA","phone":"070-8822-1779","place_id":"156584106","area":"파주 문산"},{"name":"밀밭식당","matched_name":"밀밭식당","address":"경기 파주시 문산읍 문산리 17-46 1층","category":"한식","macro_region":"경기 파주시","sub_area":"파주 문산","lat":37.85888849,"lng":126.78645587,"video_id":"4xuEYQwVArA","video_title":"","video_url":"https://www.youtube.com/watch?v=4xuEYQwVArA","phone":"031-952-7152","place_id":"23818624","area":"파주 문산"},{"name":"은하장","matched_name":"은하장","address":"경기 파주시 문산읍 문산리 17-50 2층","category":"중국요리","macro_region":"경기 파주시","sub_area":"파주 문산","lat":37.85848312,"lng":126.78599341,"video_id":"4xuEYQwVArA","video_title":"","video_url":"https://www.youtube.com/watch?v=4xuEYQwVArA","phone":"031-952-4121","place_id":"11171200","area":"파주 문산"},{"name":"산수갑산","matched_name":"을지로 산수갑산 을지로점","address":"서울 중구 인현동1가 15-4 1-2층","category":"순대","macro_region":"서울 중구","sub_area":"을지로","lat":37.56537904,"lng":126.99529702,"video_id":"qaNcHF_XQdw","video_title":"","video_url":"https://www.youtube.com/watch?v=qaNcHF_XQdw","phone":"","place_id":"27072121","area":"을지로"},{"name":"산청숯불가든","matched_name":"산청숯불가든 을지로","address":"서울 중구 을지로3가 343-1 1층","category":"육류,고기","macro_region":"서울 중구","sub_area":"을지로","lat":37.56582025,"lng":126.99062116,"video_id":"qaNcHF_XQdw","video_title":"","video_url":"https://www.youtube.com/watch?v=qaNcHF_XQdw","phone":"02-2273-8188","place_id":"2088172966","area":"을지로"},{"name":"을지오뎅","matched_name":"본가을지오뎅도루묵","address":"서울 중구 을지로3가 348-5 1층","category":"호프,요리주점","macro_region":"서울 중구","sub_area":"을지로","lat":37.5659157,"lng":126.98992616,"video_id":"qaNcHF_XQdw","video_title":"","video_url":"https://www.youtube.com/watch?v=qaNcHF_XQdw","phone":"02-2274-5092","place_id":"11786286","area":"을지로"},{"name":"우촌","matched_name":"우촌명가 숯불구이","address":"서울 중구 저동2가 10 1층","category":"한식","macro_region":"서울 중구","sub_area":"을지로","lat":37.56527066,"lng":126.99080459,"video_id":"qaNcHF_XQdw","video_title":"","video_url":"https://www.youtube.com/watch?v=qaNcHF_XQdw","phone":"02-2266-2932","place_id":"20743696","area":"을지로"},{"name":"을지수제비","matched_name":"을지수제비","address":"서울 중구 을지로3가 291-39 1층","category":"수제비","macro_region":"서울 중구","sub_area":"을지로","lat":37.56569337,"lng":126.99298003,"video_id":"qaNcHF_XQdw","video_title":"","video_url":"https://www.youtube.com/watch?v=qaNcHF_XQdw","phone":"02-2266-9196","place_id":"9942127","area":"을지로"},{"name":"소점","matched_name":"소점","address":"서울 마포구 연남동 487-278 1층","category":"일본식주점","macro_region":"서울 마포구","sub_area":"연남동","lat":37.56585096,"lng":126.91706636,"video_id":"v3Btxw0-lKU","video_title":"","video_url":"https://www.youtube.com/watch?v=v3Btxw0-lKU","phone":"","place_id":"1671949372","area":"연남동"},{"name":"사루카메","matched_name":"사루카메","address":"서울 마포구 연남동 566-67 1층","category":"일본식라면","macro_region":"서울 마포구","sub_area":"연남동","lat":37.56103626,"lng":126.92270588,"video_id":"v3Btxw0-lKU","video_title":"","video_url":"https://www.youtube.com/watch?v=v3Btxw0-lKU","phone":"070-999-9999","place_id":"560657944","area":"연남동"},{"name":"쿄라멘","matched_name":"쿄라멘","address":"서울 마포구 연남동 385-4 지층","category":"일본식라면","macro_region":"서울 마포구","sub_area":"연남동","lat":37.56231789,"lng":126.92617704,"video_id":"v3Btxw0-lKU","video_title":"","video_url":"https://www.youtube.com/watch?v=v3Btxw0-lKU","phone":"02-6338-8043","place_id":"887102975","area":"연남동"},{"name":"온정","matched_name":"온정","address":"서울 마포구 연남동 387-15 지하1층","category":"일식","macro_region":"서울 마포구","sub_area":"연남동","lat":37.56267972,"lng":126.92557567,"video_id":"v3Btxw0-lKU","video_title":"","video_url":"https://www.youtube.com/watch?v=v3Btxw0-lKU","phone":"02-6052-7038","place_id":"1248582262","area":"연남동"},{"name":"옥자","matched_name":"옥자","address":"서울 마포구 연남동 241-42","category":"국수","macro_region":"서울 마포구","sub_area":"연남동","lat":37.56548523,"lng":126.92248849,"video_id":"v3Btxw0-lKU","video_title":"","video_url":"https://www.youtube.com/watch?v=v3Btxw0-lKU","phone":"02-322-2233","place_id":"1895610195","area":"연남동"},{"name":"월강돼지국밥","matched_name":"월강부산돼지국밥","address":"서울 마포구 연남동 258-14 월강돼지국밥","category":"국밥","macro_region":"서울 마포구","sub_area":"연남동","lat":37.5615994,"lng":126.92412235,"video_id":"v3Btxw0-lKU","video_title":"","video_url":"https://www.youtube.com/watch?v=v3Btxw0-lKU","phone":"02-326-5800","place_id":"14822702","area":"연남동"},{"name":"오츠커피","matched_name":"오츠커피 연남","address":"서울 마포구 연남동 245-83 1층","category":"카페","macro_region":"서울 마포구","sub_area":"연남동","lat":37.56527017,"lng":126.92153341,"video_id":"v3Btxw0-lKU","video_title":"","video_url":"https://www.youtube.com/watch?v=v3Btxw0-lKU","phone":"070-8869-5542","place_id":"1538070005","area":"연남동"},{"name":"코메아벨렘","matched_name":"코메아벨렘","address":"서울 마포구 연남동 227-4 1층 102호","category":"테마카페","macro_region":"서울 마포구","sub_area":"연남동","lat":37.56193357,"lng":126.92683048,"video_id":"v3Btxw0-lKU","video_title":"","video_url":"https://www.youtube.com/watch?v=v3Btxw0-lKU","phone":"","place_id":"801407990","area":"연남동"},{"name":"피에트라","matched_name":"피에트라","address":"서울 마포구 연남동 375-116","category":"아이스크림","macro_region":"서울 마포구","sub_area":"연남동","lat":37.56614493,"lng":126.9200316,"video_id":"v3Btxw0-lKU","video_title":"","video_url":"https://www.youtube.com/watch?v=v3Btxw0-lKU","phone":"070-7722-5863","place_id":"1088555709","area":"연남동"},{"name":"연수식당","matched_name":"연수식당","address":"서울 은평구 갈현동 483-16 1층","category":"한식","macro_region":"서울 은평구","sub_area":"은평구","lat":37.61796458,"lng":126.9174276,"video_id":"KTZL7sxJPRQ","video_title":"","video_url":"https://www.youtube.com/watch?v=KTZL7sxJPRQ","phone":"02-352-7181","place_id":"16048285","area":"은평구"},{"name":"봉평옹심이메밀칼국수","matched_name":"봉평 옹심이메밀칼국수","address":"서울 은평구 불광동 310-238 1층","category":"국수","macro_region":"서울 은평구","sub_area":"은평구","lat":37.61971561,"lng":126.9220018,"video_id":"KTZL7sxJPRQ","video_title":"","video_url":"https://www.youtube.com/watch?v=KTZL7sxJPRQ","phone":"02-354-5121","place_id":"27275040","area":"은평구"},{"name":"차돌식당","matched_name":"차돌식당","address":"서울 은평구 불광동 310-20 1층","category":"순대","macro_region":"서울 은평구","sub_area":"은평구","lat":37.62022441,"lng":126.92297993,"video_id":"KTZL7sxJPRQ","video_title":"","video_url":"https://www.youtube.com/watch?v=KTZL7sxJPRQ","phone":"02-356-3613","place_id":"21234659","area":"은평구"},{"name":"달가득치킨","matched_name":"달가득치킨","address":"서울 은평구 대조동 197-2 1층","category":"치킨","macro_region":"서울 은평구","sub_area":"은평구","lat":37.61777961,"lng":126.92097988,"video_id":"KTZL7sxJPRQ","video_title":"","video_url":"https://www.youtube.com/watch?v=KTZL7sxJPRQ","phone":"02-6101-9390","place_id":"1477357176","area":"은평구"},{"name":"여수아구찜","matched_name":"여수아구찜탕","address":"서울 은평구 역촌동 78-77 1층","category":"해물,생선","macro_region":"서울 은평구","sub_area":"은평구","lat":37.6026245,"lng":126.91024219,"video_id":"KTZL7sxJPRQ","video_title":"","video_url":"https://www.youtube.com/watch?v=KTZL7sxJPRQ","phone":"02-355-0879","place_id":"613592848","area":"은평구"},{"name":"충무보쌈","matched_name":"충무칼국수보쌈","address":"서울 은평구 녹번동 206 2층","category":"국수","macro_region":"서울 은평구","sub_area":"은평구","lat":37.60178327,"lng":126.92921601,"video_id":"KTZL7sxJPRQ","video_title":"","video_url":"https://www.youtube.com/watch?v=KTZL7sxJPRQ","phone":"02-3142-3198","place_id":"11616973","area":"은평구"},{"name":"산도토리임자탕","matched_name":"산도토리임자탕 응암점","address":"서울 은평구 응암동 84-29 1층","category":"한식","macro_region":"서울 은평구","sub_area":"은평구","lat":37.60221194,"lng":126.92596097,"video_id":"KTZL7sxJPRQ","video_title":"","video_url":"https://www.youtube.com/watch?v=KTZL7sxJPRQ","phone":"02-358-0202","place_id":"22710501","area":"은평구"},{"name":"대성각","matched_name":"대성각","address":"서울 은평구 녹번동 82-20 1층","category":"중국요리","macro_region":"서울 은평구","sub_area":"은평구","lat":37.603072,"lng":126.92678002,"video_id":"KTZL7sxJPRQ","video_title":"","video_url":"https://www.youtube.com/watch?v=KTZL7sxJPRQ","phone":"02-356-2194","place_id":"15691712","area":"은평구"},{"name":"오늘은보글부대","matched_name":"오늘은보글부대","address":"서울 은평구 응암동 580-19 1층","category":"찌개,전골","macro_region":"서울 은평구","sub_area":"은평구","lat":37.59319473,"lng":126.9151111,"video_id":"KTZL7sxJPRQ","video_title":"","video_url":"https://www.youtube.com/watch?v=KTZL7sxJPRQ","phone":"02-376-7907","place_id":"629004629","area":"은평구"},{"name":"맛있는집","matched_name":"맛있는집","address":"서울 서대문구 북가좌동 311-6 지하1층","category":"떡볶이","macro_region":"서울 서대문구","sub_area":"서대문구 떡볶이","lat":37.58043352,"lng":126.91083489,"video_id":"n-oDdoUAopg","video_title":"","video_url":"https://www.youtube.com/watch?v=n-oDdoUAopg","phone":"02-305-1906","place_id":"1893424671","area":"서대문구 떡볶이"},{"name":"신흥떡볶이","matched_name":"신흥떡볶이","address":"서울 서대문구 남가좌동 291-28","category":"떡볶이","macro_region":"서울 서대문구","sub_area":"서대문구 떡볶이","lat":37.56941795,"lng":126.91572671,"video_id":"n-oDdoUAopg","video_title":"","video_url":"https://www.youtube.com/watch?v=n-oDdoUAopg","phone":"","place_id":"21394113","area":"서대문구 떡볶이"},{"name":"엄마손떡볶이","matched_name":"엄마손떡볶이 본점","address":"서울 서대문구 남가좌동 324-46","category":"떡볶이","macro_region":"서울 서대문구","sub_area":"서대문구 떡볶이","lat":37.57894178,"lng":126.92416362,"video_id":"n-oDdoUAopg","video_title":"","video_url":"https://www.youtube.com/watch?v=n-oDdoUAopg","phone":"02-305-7572","place_id":"21328592","area":"서대문구 떡볶이"},{"name":"철길떡볶이","matched_name":"철길떡볶이","address":"서울 서대문구 충정로3가 150-1 1층","category":"떡볶이","macro_region":"서울 서대문구","sub_area":"서대문구 떡볶이","lat":37.56255967,"lng":126.96346983,"video_id":"n-oDdoUAopg","video_title":"","video_url":"https://www.youtube.com/watch?v=n-oDdoUAopg","phone":"02-364-3440","place_id":"25880887","area":"서대문구 떡볶이"},{"name":"정든다락","matched_name":"정든다락너와나누다","address":"서울 양천구 신월동 544-8 1층","category":"호프,요리주점","macro_region":"서울 양천구","sub_area":"","lat":37.5184427,"lng":126.8417035,"video_id":"BEpse6z5QCo","video_title":"","video_url":"https://www.youtube.com/watch?v=BEpse6z5QCo","phone":"","place_id":"323952813","area":""},{"name":"리에제와플","matched_name":"덕수궁 리에제와플","address":"서울 중구 태평로2가 365 1층","category":"카페","macro_region":"서울 중구","sub_area":"","lat":37.56479294,"lng":126.97645247,"video_id":"BEpse6z5QCo","video_title":"","video_url":"https://www.youtube.com/watch?v=BEpse6z5QCo","phone":"02-318-5202","place_id":"243733683","area":""},{"name":"덕수정","matched_name":"덕수정","address":"서울 중구 정동 11-5 1층","category":"한식","macro_region":"서울 중구","sub_area":"","lat":37.5658841,"lng":126.97254031,"video_id":"BEpse6z5QCo","video_title":"","video_url":"https://www.youtube.com/watch?v=BEpse6z5QCo","phone":"02-755-0180","place_id":"10325577","area":""},{"name":"남도식당","matched_name":"남도식당","address":"서울 영등포구 영등포동6가 80-1 1-2층","category":"한식","macro_region":"서울 영등포구","sub_area":"","lat":37.52049184,"lng":126.90384529,"video_id":"BEpse6z5QCo","video_title":"","video_url":"https://www.youtube.com/watch?v=BEpse6z5QCo","phone":"02-2068-8862","place_id":"235504328","area":""},{"name":"정동전망대","matched_name":"정동전망대","address":"서울 중구 서소문동 37 서울시청 서소문청사 1동 13층","category":"전망대","macro_region":"서울 중구","sub_area":"","lat":37.56456211,"lng":126.97560817,"video_id":"BEpse6z5QCo","video_title":"","video_url":"https://www.youtube.com/watch?v=BEpse6z5QCo","phone":"","place_id":"26094867","area":""},{"name":"세실마루","matched_name":"세실마루","address":"서울 중구 정동 3-7","category":"전망대","macro_region":"서울 중구","sub_area":"","lat":37.56672282,"lng":126.97617342,"video_id":"BEpse6z5QCo","video_title":"","video_url":"https://www.youtube.com/watch?v=BEpse6z5QCo","phone":"","place_id":"1841732402","area":""},{"name":"유림면","matched_name":"유림면 여의도TP타워점","address":"서울 영등포구 여의도동 27-2 TP타워 지하1층 B103호","category":"국수","macro_region":"서울 영등포구","sub_area":"","lat":37.5215438,"lng":126.92294121,"video_id":"BEpse6z5QCo","video_title":"","video_url":"https://www.youtube.com/watch?v=BEpse6z5QCo","phone":"","place_id":"1747938424","area":""},{"name":"삼우정","matched_name":"삼우정","address":"서울 중구 서소문동 106","category":"한정식","macro_region":"서울 중구","sub_area":"","lat":37.56324938,"lng":126.97571612,"video_id":"BEpse6z5QCo","video_title":"","video_url":"https://www.youtube.com/watch?v=BEpse6z5QCo","phone":"02-752-8044","place_id":"8352811","area":""},{"name":"청송옥","matched_name":"청송옥","address":"서울 중구 서소문동 52-1 1층","category":"국밥","macro_region":"서울 중구","sub_area":"","lat":37.56344432,"lng":126.97306073,"video_id":"BEpse6z5QCo","video_title":"","video_url":"https://www.youtube.com/watch?v=BEpse6z5QCo","phone":"02-754-1547","place_id":"10854191","area":""},{"name":"조조칼국수","matched_name":"조조칼국수 시청점","address":"서울 중구 서소문동 120-11 1층","category":"국수","macro_region":"서울 중구","sub_area":"","lat":37.56214085,"lng":126.97427679,"video_id":"BEpse6z5QCo","video_title":"","video_url":"https://www.youtube.com/watch?v=BEpse6z5QCo","phone":"02-6949-4333","place_id":"1932883175","area":""},{"name":"라운드앤드","matched_name":"라운드앤드","address":"서울 중구 정동 11-3 1층","category":"테마카페","macro_region":"서울 중구","sub_area":"","lat":37.56606066,"lng":126.97236367,"video_id":"BEpse6z5QCo","video_title":"","video_url":"https://www.youtube.com/watch?v=BEpse6z5QCo","phone":"","place_id":"1651034737","area":""},{"name":"전통찻집덕수궁","matched_name":"전통찻집덕수궁","address":"서울 중구 서소문동 53-6 2층","category":"전통찻집","macro_region":"서울 중구","sub_area":"","lat":37.56305514,"lng":126.97325215,"video_id":"BEpse6z5QCo","video_title":"","video_url":"https://www.youtube.com/watch?v=BEpse6z5QCo","phone":"02-773-0885","place_id":"13566339","area":""},{"name":"모루카츠","matched_name":"모루카츠","address":"서울 종로구 종로1가 24 르메이에르 지하1층 117-1(홀) 116-1(포장)호","category":"돈까스,우동","macro_region":"서울 종로구","sub_area":"광화문","lat":37.5710906,"lng":126.97971509,"video_id":"SuQAN6x3nQI","video_title":"","video_url":"https://www.youtube.com/watch?v=SuQAN6x3nQI","phone":"070-4027-4963","place_id":"119873086","area":"광화문"},{"name":"광화문더덕순대","matched_name":"광화문더덕순대","address":"서울 종로구 당주동 38-2 지하1층","category":"순대","macro_region":"서울 종로구","sub_area":"광화문","lat":37.57106899,"lng":126.97506949,"video_id":"SuQAN6x3nQI","video_title":"","video_url":"https://www.youtube.com/watch?v=SuQAN6x3nQI","phone":"02-725-0054","place_id":"21340702","area":"광화문"},{"name":"동베이","matched_name":"동베이","address":"서울 종로구 당주동 37-6 2층","category":"양꼬치","macro_region":"서울 종로구","sub_area":"광화문","lat":37.57098429,"lng":126.97503217,"video_id":"SuQAN6x3nQI","video_title":"","video_url":"https://www.youtube.com/watch?v=SuQAN6x3nQI","phone":"02-723-8696","place_id":"552877346","area":"광화문"},{"name":"진중 우육면관 광화문","matched_name":"진중 우육면관 광화문점","address":"서울 종로구 청진동 39 1-2층","category":"중식","macro_region":"서울 종로구","sub_area":"광화문","lat":37.5720414,"lng":126.98123169,"video_id":"SuQAN6x3nQI","video_title":"","video_url":"https://www.youtube.com/watch?v=SuQAN6x3nQI","phone":"070-7543-4830","place_id":"1030931779","area":"광화문"},{"name":"꼬꼬뚝닭","matched_name":"꼬꼬뚝닭","address":"서울 종로구 도렴동 60 도렴빌딩 지하1층 16호","category":"육류,고기","macro_region":"서울 종로구","sub_area":"광화문","lat":37.57365286,"lng":126.97421283,"video_id":"SuQAN6x3nQI","video_title":"","video_url":"https://www.youtube.com/watch?v=SuQAN6x3nQI","phone":"02-720-7355","place_id":"24870334","area":"광화문"},{"name":"아이노가든키친","matched_name":"아이노가든키친","address":"서울 종로구 내수동 110-9 2층","category":"한식","macro_region":"서울 종로구","sub_area":"광화문","lat":37.57277821,"lng":126.97125863,"video_id":"SuQAN6x3nQI","video_title":"","video_url":"https://www.youtube.com/watch?v=SuQAN6x3nQI","phone":"","place_id":"1427790515","area":"광화문"},{"name":"커피원","matched_name":"커피원","address":"서울 종로구 신문로1가 238 신문로빌딩 지하1층","category":"테마카페","macro_region":"서울 종로구","sub_area":"광화문","lat":37.57135145,"lng":126.97298657,"video_id":"SuQAN6x3nQI","video_title":"","video_url":"https://www.youtube.com/watch?v=SuQAN6x3nQI","phone":"","place_id":"145128148","area":"광화문"},{"name":"곳온니플레이스 MOFAT","matched_name":"곳온니플레이스","address":"서울 종로구 신문로1가 238 1층","category":"카페","macro_region":"서울 종로구","sub_area":"광화문","lat":37.57143881,"lng":126.97282693,"video_id":"SuQAN6x3nQI","video_title":"","video_url":"https://www.youtube.com/watch?v=SuQAN6x3nQI","phone":"","place_id":"519178380","area":"광화문"},{"name":"훼미리손칼국수보쌈","matched_name":"훼미리손칼국수보쌈","address":"서울 성동구 성수동1가 656-970 1층","category":"육류,고기","macro_region":"서울 성동구","sub_area":"","lat":37.54955908,"lng":127.04467846,"video_id":"AZ1UFegG32c","video_title":"","video_url":"https://www.youtube.com/watch?v=AZ1UFegG32c","phone":"","place_id":"20746195","area":""},{"name":"타코튜즈데이","matched_name":"타코튜즈데이 성수점","address":"서울 성동구 성수동1가 656-482 1층","category":"멕시칸,브라질","macro_region":"서울 성동구","sub_area":"","lat":37.5467341,"lng":127.0455945,"video_id":"AZ1UFegG32c","video_title":"","video_url":"https://www.youtube.com/watch?v=AZ1UFegG32c","phone":"02-462-7776","place_id":"1248595613","area":""},{"name":"비사벌전주콩나물국밥","matched_name":"비사벌전주콩나물국밥","address":"서울 서대문구 홍제동 266-76 1층","category":"국밥","macro_region":"서울 서대문구","sub_area":"","lat":37.59163573,"lng":126.94506171,"video_id":"AZ1UFegG32c","video_title":"","video_url":"https://www.youtube.com/watch?v=AZ1UFegG32c","phone":"02-391-2080","place_id":"1849896686","area":""},{"name":"우콘카레","matched_name":"우콘카레","address":"서울 성동구 성수동2가 328-17 1층","category":"퓨전일식","macro_region":"서울 성동구","sub_area":"","lat":37.5399685,"lng":127.05604544,"video_id":"AZ1UFegG32c","video_title":"","video_url":"https://www.youtube.com/watch?v=AZ1UFegG32c","phone":"070-4124-8769","place_id":"26512966","area":""},{"name":"Bored&Hungry","matched_name":"보어드앤헝그리","address":"서울 마포구 신수동 85-16 1층","category":"햄버거","macro_region":"서울 마포구","sub_area":"","lat":37.54829761,"lng":126.93904952,"video_id":"AZ1UFegG32c","video_title":"","video_url":"https://www.youtube.com/watch?v=AZ1UFegG32c","phone":"02-711-5461","place_id":"108492868","area":""},{"name":"프라이데이무브먼트","matched_name":"프라이데이무브먼트","address":"서울 성동구 성수동1가 656-1766 1층","category":"테마카페","macro_region":"서울 성동구","sub_area":"","lat":37.54947335,"lng":127.04503487,"video_id":"AZ1UFegG32c","video_title":"","video_url":"https://www.youtube.com/watch?v=AZ1UFegG32c","phone":"02-6012-4862","place_id":"27288012","area":""},{"name":"옹근달","matched_name":"옹근달","address":"서울 용산구 한강로2가 154","category":"카페","macro_region":"서울 용산구","sub_area":"","lat":37.52996076,"lng":126.97037225,"video_id":"AZ1UFegG32c","video_title":"","video_url":"https://www.youtube.com/watch?v=AZ1UFegG32c","phone":"","place_id":"1631670201","area":""},{"name":"벱(BEP)","matched_name":"벱 한남점","address":"서울 용산구 한남동 683-15 지층","category":"동남아음식","macro_region":"서울 용산구","sub_area":"","lat":37.53669224,"lng":127.00145165,"video_id":"AZ1UFegG32c","video_title":"","video_url":"https://www.youtube.com/watch?v=AZ1UFegG32c","phone":"070-7778-5917","place_id":"1812026482","area":""},{"name":"조개도","matched_name":"조개도","address":"서울 성동구 성수동2가 331-233","category":"해물,생선","macro_region":"서울 성동구","sub_area":"","lat":37.53797222,"lng":127.05533451,"video_id":"AZ1UFegG32c","video_title":"","video_url":"https://www.youtube.com/watch?v=AZ1UFegG32c","phone":"0502-5552-1049","place_id":"272538522","area":""},{"name":"옹근달 성수점","matched_name":"옹근달","address":"서울 성동구 성수동2가 333-52 1, 2층","category":"카페","macro_region":"서울 성동구","sub_area":"","lat":37.54271255,"lng":127.05299007,"video_id":"AZ1UFegG32c","video_title":"","video_url":"https://www.youtube.com/watch?v=AZ1UFegG32c","phone":"02-499-5012","place_id":"547570065","area":""},{"name":"무수옥","matched_name":"무수옥","address":"서울 도봉구 도봉동 600-4","category":"육류,고기","macro_region":"서울 도봉구","sub_area":"","lat":37.67713477,"lng":127.04416425,"video_id":"GtabqXyzS3Q","video_title":"","video_url":"https://www.youtube.com/watch?v=GtabqXyzS3Q","phone":"02-954-6292","place_id":"13091152","area":""},{"name":"미성옥","matched_name":"미성옥","address":"서울 중구 명동1가 54-6 1층","category":"설렁탕","macro_region":"서울 중구","sub_area":"","lat":37.56417071,"lng":126.98393656,"video_id":"GtabqXyzS3Q","video_title":"","video_url":"https://www.youtube.com/watch?v=GtabqXyzS3Q","phone":"02-776-8929","place_id":"19157171","area":""},{"name":"대흥설농탕","matched_name":"대흥설농탕","address":"서울 동대문구 장안동 192-75 1층","category":"설렁탕","macro_region":"서울 동대문구","sub_area":"","lat":37.56703839,"lng":127.06259456,"video_id":"GtabqXyzS3Q","video_title":"","video_url":"https://www.youtube.com/watch?v=GtabqXyzS3Q","phone":"02-2249-3939","place_id":"16042610","area":""},{"name":"외고집설농탕","matched_name":"외고집설렁탕","address":"서울 강남구 삼성동 120-8 알앤텍빌딩 1층","category":"설렁탕","macro_region":"서울 강남구","sub_area":"","lat":37.51101489,"lng":127.05390191,"video_id":"GtabqXyzS3Q","video_title":"","video_url":"https://www.youtube.com/watch?v=GtabqXyzS3Q","phone":"02-567-5225","place_id":"8024422","area":""},{"name":"외고집설렁탕","matched_name":"외고집설렁탕","address":"서울 강남구 삼성동 120-8 알앤텍빌딩 1층","category":"설렁탕","macro_region":"서울 강남구","sub_area":"","lat":37.51101489,"lng":127.05390191,"video_id":"GtabqXyzS3Q","video_title":"","video_url":"https://www.youtube.com/watch?v=GtabqXyzS3Q","phone":"02-567-5225","place_id":"8024422","area":""},{"name":"은성횟집","matched_name":"은성회집","address":"서울 종로구 종로4가 165-2 광장시장 45-1호","category":"해물,생선","macro_region":"서울 종로구","sub_area":"","lat":37.57040309,"lng":127.00014942,"video_id":"mQHEIyr2-yI","video_title":"","video_url":"https://www.youtube.com/watch?v=mQHEIyr2-yI","phone":"02-2267-6813","place_id":"11177923","area":""},{"name":"박가네빈대떡","matched_name":"박가네빈대떡 본점","address":"서울 종로구 종로5가 138-10 광장시장 1층","category":"한식","macro_region":"서울 종로구","sub_area":"","lat":37.57051661,"lng":127.00084444,"video_id":"mQHEIyr2-yI","video_title":"","video_url":"https://www.youtube.com/watch?v=mQHEIyr2-yI","phone":"02-2264-0847","place_id":"12543498","area":""},{"name":"모녀김밥","matched_name":"모녀김밥","address":"서울 종로구 종로5가 395-4 1-2층","category":"한식","macro_region":"서울 종로구","sub_area":"","lat":37.57027694,"lng":127.00112064,"video_id":"mQHEIyr2-yI","video_title":"","video_url":"https://www.youtube.com/watch?v=mQHEIyr2-yI","phone":"02-2273-8330","place_id":"13053446","area":""},{"name":"광장시장 찹쌀꽈배기","matched_name":"광장시장찹쌀꽈배기","address":"서울 종로구 종로4가 188 1층 105호","category":"제과,베이커리","macro_region":"서울 종로구","sub_area":"","lat":37.57066708,"lng":127.00040524,"video_id":"mQHEIyr2-yI","video_title":"","video_url":"https://www.youtube.com/watch?v=mQHEIyr2-yI","phone":"010-9498-3115","place_id":"1024788121","area":""},{"name":"고향칼국수","matched_name":"고향엄마손생바지락칼국수 서울영등포점","address":"서울 영등포구 영등포동7가 203 아크로 상가 11동 1층 3호","category":"국수","macro_region":"서울 영등포구","sub_area":"","lat":37.5237963,"lng":126.90669407,"video_id":"mQHEIyr2-yI","video_title":"","video_url":"https://www.youtube.com/watch?v=mQHEIyr2-yI","phone":"02-6080-0030","place_id":"1227712947","area":""},{"name":"강가네떡볶이","matched_name":"강가네떡볶이","address":"서울 종로구 종로4가 188 아케이트 101호","category":"떡볶이","macro_region":"서울 종로구","sub_area":"","lat":37.57061932,"lng":127.00042109,"video_id":"mQHEIyr2-yI","video_title":"","video_url":"https://www.youtube.com/watch?v=mQHEIyr2-yI","phone":"","place_id":"944354902","area":""},{"name":"어니언 광장시장","matched_name":"어니언 광장시장","address":"서울 종로구 종로5가 398-19 1층","category":"카페","macro_region":"서울 종로구","sub_area":"","lat":37.56982644,"lng":127.00152813,"video_id":"mQHEIyr2-yI","video_title":"","video_url":"https://www.youtube.com/watch?v=mQHEIyr2-yI","phone":"070-4488-3317","place_id":"1021356734","area":""},{"name":"60년전통떡집","matched_name":"60년전통떡집","address":"서울 종로구 예지동 2-1","category":"떡,한과","macro_region":"서울 종로구","sub_area":"","lat":37.57025711,"lng":126.99837564,"video_id":"mQHEIyr2-yI","video_title":"","video_url":"https://www.youtube.com/watch?v=mQHEIyr2-yI","phone":"","place_id":"1624582296","area":""},{"name":"퍼블릭가든","matched_name":"퍼블릭가든","address":"서울 종로구 예지동 269-25 세마빌딩 4층","category":"카페","macro_region":"서울 종로구","sub_area":"","lat":37.56966066,"lng":126.99969098,"video_id":"mQHEIyr2-yI","video_title":"","video_url":"https://www.youtube.com/watch?v=mQHEIyr2-yI","phone":"0507-1375-3402","place_id":"1427828053","area":""},{"name":"승우네식당","matched_name":"승우네식당","address":"서울 종로구 종로4가 143 1층","category":"한식","macro_region":"서울 종로구","sub_area":"","lat":37.57047876,"lng":126.9988137,"video_id":"mQHEIyr2-yI","video_title":"","video_url":"https://www.youtube.com/watch?v=mQHEIyr2-yI","phone":"02-2268-8589","place_id":"21409927","area":""},{"name":"북극해고등어 서오릉점","matched_name":"북극해고등어 서오릉점","address":"경기 고양시 덕양구 용두동 432-519 1층","category":"해물,생선","macro_region":"경기 고양시","sub_area":"","lat":37.62841214,"lng":126.89051112,"video_id":"ZvI6ILRsTTs","video_title":"","video_url":"https://www.youtube.com/watch?v=ZvI6ILRsTTs","phone":"02-382-3400","place_id":"1941134748","area":""},{"name":"남원골추어탕","matched_name":"남원골추어탕","address":"서울 영등포구 대림동 1116-14 1층 101호","category":"해물,생선","macro_region":"서울 영등포구","sub_area":"","lat":37.49129288,"lng":126.89628173,"video_id":"ZvI6ILRsTTs","video_title":"","video_url":"https://www.youtube.com/watch?v=ZvI6ILRsTTs","phone":"02-831-5311","place_id":"12058390","area":""},{"name":"서오릉 돼지집","matched_name":"서오릉돼지집","address":"경기 고양시 덕양구 용두동 432-26 1층","category":"육류,고기","macro_region":"경기 고양시","sub_area":"","lat":37.62800535,"lng":126.88907302,"video_id":"ZvI6ILRsTTs","video_title":"","video_url":"https://www.youtube.com/watch?v=ZvI6ILRsTTs","phone":"02-386-3535","place_id":"687342538","area":""},{"name":"서오릉 메카 다슬기","matched_name":"서오릉메카다슬기 본점","address":"경기 고양시 덕양구 용두동 1-90 1층","category":"한식","macro_region":"경기 고양시","sub_area":"","lat":37.61953145,"lng":126.90437712,"video_id":"ZvI6ILRsTTs","video_title":"","video_url":"https://www.youtube.com/watch?v=ZvI6ILRsTTs","phone":"02-357-4779","place_id":"23121136","area":""},{"name":"서오릉 순메밀 막국수","matched_name":"서오릉순메밀막국수","address":"경기 고양시 덕양구 용두동 432-488 1, 2층","category":"국수","macro_region":"경기 고양시","sub_area":"","lat":37.6279798,"lng":126.89163213,"video_id":"ZvI6ILRsTTs","video_title":"","video_url":"https://www.youtube.com/watch?v=ZvI6ILRsTTs","phone":"02-355-1007","place_id":"26636430","area":""},{"name":"주막보리밥 서오릉 본점","matched_name":"주막보리밥 서오릉본점","address":"경기 고양시 덕양구 용두동 432-183 1층","category":"한식","macro_region":"경기 고양시","sub_area":"","lat":37.62589429,"lng":126.89193082,"video_id":"ZvI6ILRsTTs","video_title":"","video_url":"https://www.youtube.com/watch?v=ZvI6ILRsTTs","phone":"02-353-5694","place_id":"19511574","area":""},{"name":"뚱이네 한식뷔페","matched_name":"뚱이네한식뷔페 3호점","address":"서울 서대문구 북가좌동 337-10 1층","category":"한식뷔페","macro_region":"서울 서대문구","sub_area":"","lat":37.58421067,"lng":126.91350231,"video_id":"ZvI6ILRsTTs","video_title":"","video_url":"https://www.youtube.com/watch?v=ZvI6ILRsTTs","phone":"","place_id":"2042760119","area":""},{"name":"갈비도락 서오릉점","matched_name":"갈비도락 서오릉점","address":"경기 고양시 덕양구 용두동 432-499 1-2층","category":"육류,고기","macro_region":"경기 고양시","sub_area":"","lat":37.62757112,"lng":126.8950312,"video_id":"ZvI6ILRsTTs","video_title":"","video_url":"https://www.youtube.com/watch?v=ZvI6ILRsTTs","phone":"02-356-5962","place_id":"393481088","area":""},{"name":"청담한식 서오릉 본점","matched_name":"청담한식 서오릉본점","address":"경기 고양시 덕양구 용두동 432-27 1층","category":"한정식","macro_region":"경기 고양시","sub_area":"","lat":37.62805556,"lng":126.88976398,"video_id":"ZvI6ILRsTTs","video_title":"","video_url":"https://www.youtube.com/watch?v=ZvI6ILRsTTs","phone":"02-357-1100","place_id":"997103710","area":""},{"name":"통큰장어","matched_name":"통큰바다장어","address":"서울 관악구 신림동 514-14 1층","category":"해물,생선","macro_region":"서울 관악구","sub_area":"","lat":37.485087,"lng":126.91461623,"video_id":"ZvI6ILRsTTs","video_title":"","video_url":"https://www.youtube.com/watch?v=ZvI6ILRsTTs","phone":"02-863-6553","place_id":"21264276","area":""},{"name":"서오릉돼지집","matched_name":"서오릉돼지집","address":"경기 고양시 덕양구 용두동 432-26 1층","category":"육류,고기","macro_region":"경기 고양시","sub_area":"","lat":37.62800535,"lng":126.88907302,"video_id":"ZvI6ILRsTTs","video_title":"","video_url":"https://www.youtube.com/watch?v=ZvI6ILRsTTs","phone":"02-386-3535","place_id":"687342538","area":""},{"name":"서오릉메카다슬기","matched_name":"서오릉메카다슬기","address":"경기 고양시 덕양구 용두동 1-90 1층","category":"한식","macro_region":"경기 고양시","sub_area":"","lat":37.61950449,"lng":126.90445644,"video_id":"ZvI6ILRsTTs","video_title":"","video_url":"https://www.youtube.com/watch?v=ZvI6ILRsTTs","phone":"","place_id":"1970636685","area":""},{"name":"서오릉순메밀막국수","matched_name":"서오릉순메밀막국수","address":"경기 고양시 덕양구 용두동 432-488 1, 2층","category":"국수","macro_region":"경기 고양시","sub_area":"","lat":37.6279798,"lng":126.89163213,"video_id":"ZvI6ILRsTTs","video_title":"","video_url":"https://www.youtube.com/watch?v=ZvI6ILRsTTs","phone":"02-355-1007","place_id":"26636430","area":""},{"name":"주막보리밥서오릉본점","matched_name":"주막보리밥 서오릉본점","address":"경기 고양시 덕양구 용두동 432-183 1층","category":"한식","macro_region":"경기 고양시","sub_area":"","lat":37.62589429,"lng":126.89193082,"video_id":"ZvI6ILRsTTs","video_title":"","video_url":"https://www.youtube.com/watch?v=ZvI6ILRsTTs","phone":"02-353-5694","place_id":"19511574","area":""},{"name":"뚱이네한식뷔페","matched_name":"뚱이네한식뷔페 3호점","address":"서울 서대문구 북가좌동 337-10 1층","category":"한식뷔페","macro_region":"서울 서대문구","sub_area":"","lat":37.58421067,"lng":126.91350231,"video_id":"ZvI6ILRsTTs","video_title":"","video_url":"https://www.youtube.com/watch?v=ZvI6ILRsTTs","phone":"","place_id":"2042760119","area":""},{"name":"청담한식 서오릉본점","matched_name":"청담한식 서오릉본점","address":"경기 고양시 덕양구 용두동 432-27 1층","category":"한정식","macro_region":"경기 고양시","sub_area":"","lat":37.62805556,"lng":126.88976398,"video_id":"ZvI6ILRsTTs","video_title":"","video_url":"https://www.youtube.com/watch?v=ZvI6ILRsTTs","phone":"02-357-1100","place_id":"997103710","area":""},{"name":"통큰장어 서오릉지점","matched_name":"통큰장어 서오릉지점","address":"경기 고양시 덕양구 용두동 432-214","category":"해물,생선","macro_region":"경기 고양시","sub_area":"","lat":37.62474306,"lng":126.89826701,"video_id":"ZvI6ILRsTTs","video_title":"","video_url":"https://www.youtube.com/watch?v=ZvI6ILRsTTs","phone":"02-355-8848","place_id":"25412828","area":""},{"name":"시골순대국","matched_name":"시골순대국","address":"서울 은평구 갈현동 391-3 1층","category":"순대","macro_region":"서울 은평구","sub_area":"","lat":37.62583431,"lng":126.9194636,"video_id":"QOwS7CL81Cg","video_title":"","video_url":"https://www.youtube.com/watch?v=QOwS7CL81Cg","phone":"02-387-4484","place_id":"13561221","area":""},{"name":"다온상회","matched_name":"다온상회","address":"서울 은평구 갈현동 460-13 1층","category":"육류,고기","macro_region":"서울 은평구","sub_area":"","lat":37.61723209,"lng":126.91874457,"video_id":"QOwS7CL81Cg","video_title":"","video_url":"https://www.youtube.com/watch?v=QOwS7CL81Cg","phone":"","place_id":"917788077","area":""},{"name":"불광우동","matched_name":"불광우동","address":"서울 은평구 녹번동 131-154 1층","category":"한식","macro_region":"서울 은평구","sub_area":"","lat":37.60861116,"lng":126.92658432,"video_id":"QOwS7CL81Cg","video_title":"","video_url":"https://www.youtube.com/watch?v=QOwS7CL81Cg","phone":"02-389-2519","place_id":"27314965","area":""},{"name":"두메골돌솥쌈밥","matched_name":"두메골돌솥쌈밥","address":"서울 은평구 녹번동 131-75 1층","category":"쌈밥","macro_region":"서울 은평구","sub_area":"","lat":37.60862526,"lng":126.92752884,"video_id":"QOwS7CL81Cg","video_title":"","video_url":"https://www.youtube.com/watch?v=QOwS7CL81Cg","phone":"02-382-1515","place_id":"775358128","area":""},{"name":"모이세해장국","matched_name":"모이세해장국","address":"서울 마포구 용강동 122-6 1층","category":"해장국","macro_region":"서울 마포구","sub_area":"","lat":37.54143754,"lng":126.9410975,"video_id":"QOwS7CL81Cg","video_title":"","video_url":"https://www.youtube.com/watch?v=QOwS7CL81Cg","phone":"02-718-0523","place_id":"10326028","area":""},{"name":"메밀촌","matched_name":"강영숙 봉평메밀촌","address":"서울 강서구 화곡동 836-5 경인빌딩 가동 1층","category":"국수","macro_region":"서울 강서구","sub_area":"","lat":37.53188328,"lng":126.85754378,"video_id":"QOwS7CL81Cg","video_title":"","video_url":"https://www.youtube.com/watch?v=QOwS7CL81Cg","phone":"02-2696-9363","place_id":"705056458","area":""},{"name":"전라도밥상","matched_name":"전라도밥상","address":"서울 구로구 구로동 222-3 제이앤케이디지털타워 1층","category":"한식","macro_region":"서울 구로구","sub_area":"","lat":37.48247546,"lng":126.89712607,"video_id":"QOwS7CL81Cg","video_title":"","video_url":"https://www.youtube.com/watch?v=QOwS7CL81Cg","phone":"","place_id":"2037592435","area":""},{"name":"병천순대국왕족발","matched_name":"병천순대국왕족발","address":"서울 은평구 구산동 25-39 1층 101호","category":"순대","macro_region":"서울 은평구","sub_area":"","lat":37.60761017,"lng":126.91209354,"video_id":"QOwS7CL81Cg","video_title":"","video_url":"https://www.youtube.com/watch?v=QOwS7CL81Cg","phone":"02-354-4920","place_id":"218747802","area":""},{"name":"가이오국수","matched_name":"가이오국수 목동점","address":"서울 양천구 목동 602-9 1층","category":"국수","macro_region":"서울 양천구","sub_area":"","lat":37.54809012,"lng":126.86730713,"video_id":"QOwS7CL81Cg","video_title":"","video_url":"https://www.youtube.com/watch?v=QOwS7CL81Cg","phone":"02-2655-0925","place_id":"14502143","area":""},{"name":"진김밥","matched_name":"진김밥","address":"서울 영등포구 영등포동 618-496","category":"분식","macro_region":"서울 영등포구","sub_area":"","lat":37.51566821,"lng":126.90766566,"video_id":"QOwS7CL81Cg","video_title":"","video_url":"https://www.youtube.com/watch?v=QOwS7CL81Cg","phone":"","place_id":"1012317525","area":""},{"name":"형제기사식당","matched_name":"형제기사식당","address":"서울 강동구 길동 383-1 1층","category":"기사식당","macro_region":"서울 강동구","sub_area":"","lat":37.53955325,"lng":127.13655763,"video_id":"rY_Ncc4wggE","video_title":"","video_url":"https://www.youtube.com/watch?v=rY_Ncc4wggE","phone":"02-472-8015","place_id":"16040404","area":""},{"name":"뽀빠이기사식당","matched_name":"뽀빠이기사식당","address":"서울 광진구 중곡동 239-82 1층","category":"기사식당","macro_region":"서울 광진구","sub_area":"","lat":37.56377445,"lng":127.07856463,"video_id":"rY_Ncc4wggE","video_title":"","video_url":"https://www.youtube.com/watch?v=rY_Ncc4wggE","phone":"02-467-2445","place_id":"22675925","area":""},{"name":"장강기사님식당","matched_name":"장강","address":"서울 강북구 수유동 46-19 1층","category":"중국요리","macro_region":"서울 강북구","sub_area":"","lat":37.63577715,"lng":127.02057892,"video_id":"rY_Ncc4wggE","video_title":"","video_url":"https://www.youtube.com/watch?v=rY_Ncc4wggE","phone":"02-900-3327","place_id":"22105897","area":""},{"name":"일심해장국 영등포","matched_name":"일심해장국","address":"서울 영등포구 도림동 254-6 1층","category":"해장국","macro_region":"서울 영등포구","sub_area":"","lat":37.50587332,"lng":126.89877687,"video_id":"rY_Ncc4wggE","video_title":"","video_url":"https://www.youtube.com/watch?v=rY_Ncc4wggE","phone":"02-846-7020","place_id":"20741255","area":""},{"name":"낭만식당","matched_name":"낭만식당","address":"서울 구로구 구로동 1258","category":"한식","macro_region":"서울 구로구","sub_area":"","lat":37.50203237,"lng":126.87611717,"video_id":"rY_Ncc4wggE","video_title":"","video_url":"https://www.youtube.com/watch?v=rY_Ncc4wggE","phone":"","place_id":"1519852153","area":""},{"name":"또순이네 된장찌개","matched_name":"또순이네 양평동점","address":"서울 영등포구 양평동4가 81 오오1004빌딩 1-2층","category":"육류,고기","macro_region":"서울 영등포구","sub_area":"","lat":37.53578087,"lng":126.8952969,"video_id":"9omXqDAZdUk","video_title":"","video_url":"https://www.youtube.com/watch?v=9omXqDAZdUk","phone":"02-2672-2255","place_id":"7851288","area":""},{"name":"또순이네집","matched_name":"또순네집","address":"경기 파주시 문산읍 선유리 260-28 1층","category":"찌개,전골","macro_region":"경기 파주시","sub_area":"","lat":37.86660411,"lng":126.80728109,"video_id":"9omXqDAZdUk","video_title":"","video_url":"https://www.youtube.com/watch?v=9omXqDAZdUk","phone":"031-952-3597","place_id":"8933385","area":""},{"name":"골목집","matched_name":"골목오리집","address":"서울 영등포구 문래동2가 42-2 1층","category":"육류,고기","macro_region":"서울 영등포구","sub_area":"","lat":37.51337551,"lng":126.89312257,"video_id":"9omXqDAZdUk","video_title":"","video_url":"https://www.youtube.com/watch?v=9omXqDAZdUk","phone":"02-2676-1387","place_id":"218867054","area":""},{"name":"설눈","matched_name":"설눈","address":"서울 서초구 서초동 1551-9 영토빌딩 1층","category":"냉면","macro_region":"서울 서초구","sub_area":"","lat":37.49123349,"lng":127.0097698,"video_id":"s6ANi2V1FXY","video_title":"","video_url":"https://www.youtube.com/watch?v=s6ANi2V1FXY","phone":"02-6959-9339","place_id":"1495657850","area":""},{"name":"황평집","matched_name":"황평집","address":"서울 중구 인현동2가 135-13 1층","category":"육류,고기","macro_region":"서울 중구","sub_area":"","lat":37.56406722,"lng":126.99612903,"video_id":"s6ANi2V1FXY","video_title":"","video_url":"https://www.youtube.com/watch?v=s6ANi2V1FXY","phone":"02-2266-6875","place_id":"12751485","area":""},{"name":"사랑방칼국수","matched_name":"사랑방손칼국수보쌈","address":"서울 구로구 개봉동 170-14 1층","category":"국수","macro_region":"서울 구로구","sub_area":"","lat":37.49668348,"lng":126.85728725,"video_id":"s6ANi2V1FXY","video_title":"","video_url":"https://www.youtube.com/watch?v=s6ANi2V1FXY","phone":"02-3666-6632","place_id":"16377290","area":""},{"name":"다락투","matched_name":"다락투","address":"서울 마포구 서교동 358-83 1층","category":"육류,고기","macro_region":"서울 마포구","sub_area":"","lat":37.55271159,"lng":126.92354741,"video_id":"s6ANi2V1FXY","video_title":"","video_url":"https://www.youtube.com/watch?v=s6ANi2V1FXY","phone":"","place_id":"10278424","area":""},{"name":"이모네생선찜","matched_name":"이모네생선찜","address":"강원특별자치도 강릉시 교동 1817-2 1층","category":"해물,생선","macro_region":"강원 강릉","sub_area":"강릉","lat":37.76915384,"lng":128.876473,"video_id":"omQzR3Sbc2Y","video_title":"","video_url":"https://www.youtube.com/watch?v=omQzR3Sbc2Y","phone":"033-652-9959","place_id":"16653374","area":"강릉"},{"name":"안목바다식당","matched_name":"안목바다식당","address":"강원특별자치도 강릉시 입암동 171-2 1층","category":"국수","macro_region":"강원 강릉","sub_area":"강릉","lat":37.75951051,"lng":128.92674513,"video_id":"omQzR3Sbc2Y","video_title":"","video_url":"https://www.youtube.com/watch?v=omQzR3Sbc2Y","phone":"","place_id":"1185116202","area":"강릉"},{"name":"동화가든 본점","matched_name":"동화가든","address":"강원특별자치도 강릉시 초당동 309-1 1층","category":"두부전문점","macro_region":"강원 강릉","sub_area":"강릉","lat":37.7911413,"lng":128.91466316,"video_id":"omQzR3Sbc2Y","video_title":"","video_url":"https://www.youtube.com/watch?v=omQzR3Sbc2Y","phone":"010-9850-7112","place_id":"7846414","area":"강릉"},{"name":"강릉중앙시장","matched_name":"강릉커피콩빵 중앙시장점","address":"강원특별자치도 강릉시 성남동 51-107 1층","category":"제과,베이커리","macro_region":"강원 강릉","sub_area":"강릉","lat":37.75324312,"lng":128.90019222,"video_id":"omQzR3Sbc2Y","video_title":"","video_url":"https://www.youtube.com/watch?v=omQzR3Sbc2Y","phone":"033-645-3003","place_id":"2119279976","area":"강릉"},{"name":"광덕식당","matched_name":"광덕식당 본점","address":"강원특별자치도 강릉시 송정동 821-15 1-2층","category":"한식","macro_region":"강원 강릉","sub_area":"강릉","lat":37.77244026,"lng":128.92271829,"video_id":"omQzR3Sbc2Y","video_title":"","video_url":"https://www.youtube.com/watch?v=omQzR3Sbc2Y","phone":"033-651-1961","place_id":"333424222","area":"강릉"},{"name":"배니닭강정","matched_name":"배니닭강정","address":"강원특별자치도 강릉시 성남동 51-119 1층","category":"닭강정","macro_region":"강원 강릉","sub_area":"강릉","lat":37.75421481,"lng":128.89915055,"video_id":"omQzR3Sbc2Y","video_title":"","video_url":"https://www.youtube.com/watch?v=omQzR3Sbc2Y","phone":"033-643-9038","place_id":"19660110","area":"강릉"},{"name":"오징어순대나라","matched_name":"오징어순대나라","address":"강원특별자치도 강릉시 성남동 51-126 1층","category":"해물,생선","macro_region":"강원 강릉","sub_area":"강릉","lat":37.75399486,"lng":128.89938319,"video_id":"omQzR3Sbc2Y","video_title":"","video_url":"https://www.youtube.com/watch?v=omQzR3Sbc2Y","phone":"","place_id":"637492057","area":"강릉"},{"name":"모자호떡","matched_name":"모자호떡","address":"강원특별자치도 강릉시 성남동 50 중앙시장 185호","category":"간식","macro_region":"강원 강릉","sub_area":"강릉","lat":37.75417941,"lng":128.89899988,"video_id":"omQzR3Sbc2Y","video_title":"","video_url":"https://www.youtube.com/watch?v=omQzR3Sbc2Y","phone":"033-655-5080","place_id":"27364436","area":"강릉"},{"name":"동진네횟집","matched_name":"동진네횟집","address":"강원특별자치도 강릉시 주문진읍 주문리 312-91","category":"해물,생선","macro_region":"강원 강릉","sub_area":"강릉","lat":37.89075261,"lng":128.8279659,"video_id":"omQzR3Sbc2Y","video_title":"","video_url":"https://www.youtube.com/watch?v=omQzR3Sbc2Y","phone":"","place_id":"8981346","area":"강릉"},{"name":"철뚝소머리집","matched_name":"철뚝소머리국밥","address":"강원특별자치도 강릉시 주문진읍 주문리 326-2 1층","category":"국밥","macro_region":"강원 강릉","sub_area":"강릉","lat":37.8920453,"lng":128.82436718,"video_id":"omQzR3Sbc2Y","video_title":"","video_url":"https://www.youtube.com/watch?v=omQzR3Sbc2Y","phone":"033-662-3747","place_id":"16386152","area":"강릉"},{"name":"태화루","matched_name":"태화루","address":"서울 마포구 성산동 254-1","category":"중국요리","macro_region":"서울 마포구","sub_area":"","lat":37.55957766,"lng":126.90780843,"video_id":"O7jRuFGIGgQ","video_title":"","video_url":"https://www.youtube.com/watch?v=O7jRuFGIGgQ","phone":"02-336-1333","place_id":"92669833","area":""},{"name":"동해루","matched_name":"동해루 신길점","address":"서울 영등포구 신길동 226-101","category":"중국요리","macro_region":"서울 영등포구","sub_area":"","lat":37.50944719,"lng":126.91053485,"video_id":"O7jRuFGIGgQ","video_title":"","video_url":"https://www.youtube.com/watch?v=O7jRuFGIGgQ","phone":"02-832-4959","place_id":"7844651","area":""},{"name":"서촌계단집","matched_name":"서촌계단집","address":"서울 종로구 내자동 11-1 1층","category":"해물,생선","macro_region":"서울 종로구","sub_area":"경복궁","lat":37.57641377,"lng":126.97142477,"video_id":"-9smNRoFfXk","video_title":"","video_url":"https://www.youtube.com/watch?v=-9smNRoFfXk","phone":"02-737-8412","place_id":"19156993","area":"경복궁"},{"name":"토속촌 삼계탕","matched_name":"토속촌삼계탕","address":"서울 종로구 체부동 85-1 1층","category":"육류,고기","macro_region":"서울 종로구","sub_area":"경복궁","lat":37.57772293,"lng":126.97149446,"video_id":"-9smNRoFfXk","video_title":"","video_url":"https://www.youtube.com/watch?v=-9smNRoFfXk","phone":"02-737-7444","place_id":"26545925","area":"경복궁"},{"name":"잘빠진메밀","matched_name":"잘빠진메밀 서촌점","address":"서울 종로구 통인동 120 1-2층","category":"국수","macro_region":"서울 종로구","sub_area":"경복궁","lat":37.57966895,"lng":126.97098201,"video_id":"-9smNRoFfXk","video_title":"","video_url":"https://www.youtube.com/watch?v=-9smNRoFfXk","phone":"070-4142-1214","place_id":"24869605","area":"경복궁"},{"name":"공기식당","matched_name":"공기식당","address":"서울 종로구 통인동 46-5 1층","category":"양식","macro_region":"서울 종로구","sub_area":"경복궁","lat":37.58032451,"lng":126.96952813,"video_id":"-9smNRoFfXk","video_title":"","video_url":"https://www.youtube.com/watch?v=-9smNRoFfXk","phone":"0507-1440-0930","place_id":"27391808","area":"경복궁"},{"name":"중국","matched_name":"중국","address":"서울 종로구 청운동 59-1 1층","category":"중국요리","macro_region":"서울 종로구","sub_area":"경복궁","lat":37.58619633,"lng":126.96972274,"video_id":"-9smNRoFfXk","video_title":"","video_url":"https://www.youtube.com/watch?v=-9smNRoFfXk","phone":"","place_id":"12513980","area":"경복궁"},{"name":"생선구이소반","matched_name":"생선구이소반","address":"서울 종로구 적선동 96 1층","category":"해물,생선","macro_region":"서울 종로구","sub_area":"경복궁","lat":37.57633762,"lng":126.97328363,"video_id":"-9smNRoFfXk","video_title":"","video_url":"https://www.youtube.com/watch?v=-9smNRoFfXk","phone":"","place_id":"937360469","area":"경복궁"},{"name":"진진만두","matched_name":"진진만두 국회점","address":"서울 영등포구 여의도동 13-20 1층","category":"한식","macro_region":"서울 영등포구","sub_area":"","lat":37.52989469,"lng":126.92082605,"video_id":"7k50S3rfEgU","video_title":"","video_url":"https://www.youtube.com/watch?v=7k50S3rfEgU","phone":"02-761-5454","place_id":"14650000","area":""},{"name":"진주집","matched_name":"진주집","address":"서울 영등포구 여의도동 36-2 지하1층 5~7,27~28호","category":"국수","macro_region":"서울 영등포구","sub_area":"","lat":37.52059128,"lng":126.92695006,"video_id":"7k50S3rfEgU","video_title":"","video_url":"https://www.youtube.com/watch?v=7k50S3rfEgU","phone":"02-780-6108","place_id":"8094563","area":""},{"name":"화목순대국","matched_name":"화목순대국","address":"서울 영등포구 여의도동 44-14 경도빌딩 1층","category":"순대","macro_region":"서울 영등포구","sub_area":"","lat":37.51925139,"lng":126.93129172,"video_id":"7k50S3rfEgU","video_title":"","video_url":"https://www.youtube.com/watch?v=7k50S3rfEgU","phone":"02-780-8191","place_id":"21423297","area":""},{"name":"영원식당","matched_name":"영원식당","address":"서울 영등포구 여의도동 21-3 서울상가 2층 206호","category":"수제비","macro_region":"서울 영등포구","sub_area":"","lat":37.52615295,"lng":126.93108176,"video_id":"7k50S3rfEgU","video_title":"","video_url":"https://www.youtube.com/watch?v=7k50S3rfEgU","phone":"02-784-1866","place_id":"13289961","area":""},{"name":"소몽","matched_name":"소몽","address":"서울 영등포구 여의도동 21-4 공작상가 2층 212,213호","category":"일식","macro_region":"서울 영등포구","sub_area":"","lat":37.5260717,"lng":126.9308058,"video_id":"7k50S3rfEgU","video_title":"","video_url":"https://www.youtube.com/watch?v=7k50S3rfEgU","phone":"02-782-8891","place_id":"491228525","area":""},{"name":"진진만두 여의도","matched_name":"진진만두 여의도점","address":"서울 영등포구 여의도동 36-4 오륜빌딩 3층 304~305호","category":"한식","macro_region":"서울 영등포구","sub_area":"","lat":37.52023826,"lng":126.92723207,"video_id":"7k50S3rfEgU","video_title":"","video_url":"https://www.youtube.com/watch?v=7k50S3rfEgU","phone":"02-780-7867","place_id":"21534557","area":""},{"name":"이자와 여의도점","matched_name":"이자와 여의도점","address":"서울 영등포구 여의도동 35-5 2층 203~204호","category":"일식","macro_region":"서울 영등포구","sub_area":"","lat":37.52147032,"lng":126.9249707,"video_id":"7k50S3rfEgU","video_title":"","video_url":"https://www.youtube.com/watch?v=7k50S3rfEgU","phone":"0502-5554-1689","place_id":"358379614","area":""},{"name":"은주정","matched_name":"은주정","address":"서울 중구 주교동 43-23 1층","category":"육류,고기","macro_region":"서울 중구","sub_area":"","lat":37.56867047,"lng":126.99975663,"video_id":"_npCyHpUvhU","video_title":"","video_url":"https://www.youtube.com/watch?v=_npCyHpUvhU","phone":"02-2265-4669","place_id":"8050105","area":""},{"name":"강산옥","matched_name":"강산옥","address":"서울 중구 주교동 56-3 2층","category":"한식","macro_region":"서울 중구","sub_area":"","lat":37.56890743,"lng":126.9994295,"video_id":"_npCyHpUvhU","video_title":"","video_url":"https://www.youtube.com/watch?v=_npCyHpUvhU","phone":"02-2273-1591","place_id":"12394402","area":""},{"name":"대련집","matched_name":"대련집","address":"서울 종로구 관수동 163 1층","category":"국수","macro_region":"서울 종로구","sub_area":"","lat":37.56839335,"lng":126.98891841,"video_id":"_npCyHpUvhU","video_title":"","video_url":"https://www.youtube.com/watch?v=_npCyHpUvhU","phone":"02-2265-5349","place_id":"7818113","area":""},{"name":"실비집","matched_name":"실비집포차","address":"서울 영등포구 신길동 255-15 1층","category":"실내포장마차","macro_region":"서울 영등포구","sub_area":"","lat":37.50699621,"lng":126.91021204,"video_id":"_npCyHpUvhU","video_title":"","video_url":"https://www.youtube.com/watch?v=_npCyHpUvhU","phone":"","place_id":"857814416","area":""},{"name":"일미식당","matched_name":"일미식당","address":"서울 관악구 봉천동 10-36","category":"한식","macro_region":"서울 관악구","sub_area":"","lat":37.48901746,"lng":126.9588595,"video_id":"_npCyHpUvhU","video_title":"","video_url":"https://www.youtube.com/watch?v=_npCyHpUvhU","phone":"02-878-2141","place_id":"20740746","area":""},{"name":"세운상가","matched_name":"세운전자상가","address":"서울 종로구 장사동 116-4 세운상가 가동 569호","category":"상가,아케이드","macro_region":"서울 종로구","sub_area":"","lat":37.56913799,"lng":126.99523679,"video_id":"_npCyHpUvhU","video_title":"","video_url":"https://www.youtube.com/watch?v=_npCyHpUvhU","phone":"02-2271-2344","place_id":"27192181","area":""},{"name":"깡통만두","matched_name":"깡통만두","address":"서울 종로구 재동 84-22 1층","category":"분식","macro_region":"서울 종로구","sub_area":"안국역","lat":37.57816524,"lng":126.98608451,"video_id":"VACqbbvZ3bE","video_title":"안국에서 맛집 찾으실 때","video_url":"https://www.youtube.com/watch?v=VACqbbvZ3bE","phone":"02-794-4243","place_id":"19158798","area":"안국역"},{"name":"도마유즈라멘","matched_name":"도마유즈라멘","address":"서울 종로구 재동 84-6 1층","category":"일본식라면","macro_region":"서울 종로구","sub_area":"안국역","lat":37.57782651,"lng":126.98651702,"video_id":"VACqbbvZ3bE","video_title":"안국에서 맛집 찾으실 때","video_url":"https://www.youtube.com/watch?v=VACqbbvZ3bE","phone":"070-8838-0365","place_id":"1104039439","area":"안국역"},{"name":"런던베이글","matched_name":"런던베이글뮤지엄 안국점","address":"서울 종로구 계동 102-1 연화빌딩 1-2층","category":"제과,베이커리","macro_region":"서울 종로구","sub_area":"안국역","lat":37.57917797,"lng":126.98619979,"video_id":"VACqbbvZ3bE","video_title":"안국에서 맛집 찾으실 때","video_url":"https://www.youtube.com/watch?v=VACqbbvZ3bE","phone":"116","place_id":"314463146","area":"안국역"},{"name":"경춘자라면땡기는날","matched_name":"경춘자의라면땡기는날","address":"서울 종로구 화동 138-21","category":"분식","macro_region":"서울 종로구","sub_area":"안국역","lat":37.57929457,"lng":126.98226687,"video_id":"VACqbbvZ3bE","video_title":"안국에서 맛집 찾으실 때","video_url":"https://www.youtube.com/watch?v=VACqbbvZ3bE","phone":"02-733-3330","place_id":"10371445","area":"안국역"},{"name":"조선김밥","matched_name":"조선김밥","address":"서울 종로구 안국동 22-1 1층","category":"분식","macro_region":"서울 종로구","sub_area":"안국역","lat":37.57862242,"lng":126.98221382,"video_id":"VACqbbvZ3bE","video_title":"안국에서 맛집 찾으실 때","video_url":"https://www.youtube.com/watch?v=VACqbbvZ3bE","phone":"02-723-7496","place_id":"20945113","area":"안국역"},{"name":"베스킨라빈스","matched_name":"배스킨라빈스 삼청마당점","address":"서울 종로구 화동 137-6 1층","category":"아이스크림","macro_region":"서울 종로구","sub_area":"안국역","lat":37.57901166,"lng":126.98226241,"video_id":"VACqbbvZ3bE","video_title":"안국에서 맛집 찾으실 때","video_url":"https://www.youtube.com/watch?v=VACqbbvZ3bE","phone":"02-733-7226","place_id":"371661096","area":"안국역"},{"name":"유목민노마드","matched_name":"유목민노마드","address":"서울 종로구 관훈동 118-18","category":"유흥주점","macro_region":"서울 종로구","sub_area":"안국역","lat":37.57535388,"lng":126.98410623,"video_id":"VACqbbvZ3bE","video_title":"안국에서 맛집 찾으실 때","video_url":"https://www.youtube.com/watch?v=VACqbbvZ3bE","phone":"02-733-1171","place_id":"20059695","area":"안국역"},{"name":"히카리우동","matched_name":"히카리우동","address":"서울 은평구 응암동 285-96 2층","category":"돈까스,우동","macro_region":"서울 은평구","sub_area":"은평","lat":37.58791656,"lng":126.92018709,"video_id":"0CCRwpkkPQ4","video_title":"은평구 맛집들을 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=0CCRwpkkPQ4","phone":"010-9505-5297","place_id":"1950111192","area":"은평"},{"name":"응암생고기전문","matched_name":"맛집응암생고기전문","address":"서울 은평구 응암동 578-90 1층","category":"육류,고기","macro_region":"서울 은평구","sub_area":"은평","lat":37.59389088,"lng":126.91721302,"video_id":"0CCRwpkkPQ4","video_title":"은평구 맛집들을 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=0CCRwpkkPQ4","phone":"02-303-8633","place_id":"1015964851","area":"은평"},{"name":"미소복 원조 양평해장국","matched_name":"미소복 원조양평해장국 직영점","address":"서울 은평구 갈현동 460-18","category":"해장국","macro_region":"서울 은평구","sub_area":"은평","lat":37.61693836,"lng":126.91874262,"video_id":"0CCRwpkkPQ4","video_title":"은평구 맛집들을 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=0CCRwpkkPQ4","phone":"02-354-5058","place_id":"16414674","area":"은평"},{"name":"목노집","matched_name":"목노집","address":"서울 은평구 대조동 197-2 1층","category":"육류,고기","macro_region":"서울 은평구","sub_area":"은평","lat":37.61777961,"lng":126.92098101,"video_id":"0CCRwpkkPQ4","video_title":"은평구 맛집들을 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=0CCRwpkkPQ4","phone":"02-355-1652","place_id":"7884924","area":"은평"},{"name":"삼오순대국","matched_name":"삼오순대국 불광역점","address":"서울 은평구 대조동 9-17 1층","category":"순대","macro_region":"서울 은평구","sub_area":"은평","lat":37.61025912,"lng":126.92812752,"video_id":"0CCRwpkkPQ4","video_title":"은평구 맛집들을 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=0CCRwpkkPQ4","phone":"02-387-2605","place_id":"11829911","area":"은평"},{"name":"차이몬스터","matched_name":"차이몬스터","address":"서울 은평구 응암동 591-18 1층","category":"중국요리","macro_region":"서울 은평구","sub_area":"은평","lat":37.58897552,"lng":126.91406291,"video_id":"0CCRwpkkPQ4","video_title":"은평구 맛집들을 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=0CCRwpkkPQ4","phone":"02-305-7843","place_id":"26924140","area":"은평"},{"name":"은평닭곰탕","matched_name":"은평닭곰탕","address":"서울 은평구 역촌동 83-4 1층","category":"곰탕","macro_region":"서울 은평구","sub_area":"은평","lat":37.6022858,"lng":126.91521402,"video_id":"0CCRwpkkPQ4","video_title":"은평구 맛집들을 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=0CCRwpkkPQ4","phone":"0502-5550-0839","place_id":"497259736","area":"은평"},{"name":"또순네식당","matched_name":"또순네식당","address":"서울 은평구 응암동 87-4 1층","category":"한식","macro_region":"서울 은평구","sub_area":"은평","lat":37.60148944,"lng":126.92328915,"video_id":"0CCRwpkkPQ4","video_title":"은평구 맛집들을 다녀왔습니다.","video_url":"https://www.youtube.com/watch?v=0CCRwpkkPQ4","phone":"02-359-9994","place_id":"20749451","area":"은평"},{"name":"유즈라멘","matched_name":"유즈라멘 서울역본점","address":"서울 중구 만리동1가 53-8 경김회관 1층 1호","category":"일본식라면","macro_region":"서울 중구","sub_area":"서울역","lat":37.55681539,"lng":126.96823845,"video_id":"x7MX2igqRR4","video_title":"영상 만들어 봤고요, 맛집 정보를 찾으시는","video_url":"https://www.youtube.com/watch?v=x7MX2igqRR4","phone":"070-4177-0365","place_id":"469577034","area":"서울역"},{"name":"금자네생등심","matched_name":"금자네생등심","address":"서울 중구 남대문로5가 63-7","category":"육류,고기","macro_region":"서울 중구","sub_area":"서울역","lat":37.5576489,"lng":126.9721359,"video_id":"x7MX2igqRR4","video_title":"영상 만들어 봤고요, 맛집 정보를 찾으시는","video_url":"https://www.youtube.com/watch?v=x7MX2igqRR4","phone":"02-755-2345","place_id":"9669022","area":"서울역"},{"name":"메시야","matched_name":"메시야","address":"서울 용산구 동자동 14-125 1층","category":"돈까스,우동","macro_region":"서울 용산구","sub_area":"서울역","lat":37.55008503,"lng":126.97218511,"video_id":"x7MX2igqRR4","video_title":"영상 만들어 봤고요, 맛집 정보를 찾으시는","video_url":"https://www.youtube.com/watch?v=x7MX2igqRR4","phone":"02-318-5235","place_id":"25574966","area":"서울역"},{"name":"노이덴","matched_name":"노이덴","address":"서울 용산구 동자동 43-13 1층","category":"동남아음식","macro_region":"서울 용산구","sub_area":"서울역","lat":37.55169959,"lng":126.9720555,"video_id":"x7MX2igqRR4","video_title":"영상 만들어 봤고요, 맛집 정보를 찾으시는","video_url":"https://www.youtube.com/watch?v=x7MX2igqRR4","phone":"02-711-4748","place_id":"709029480","area":"서울역"},{"name":"파이브가이즈","matched_name":"파이브가이즈 서울역점","address":"서울 중구 봉래동2가 122-11 2층","category":"햄버거","macro_region":"서울 중구","sub_area":"서울역","lat":37.55547991,"lng":126.97095631,"video_id":"x7MX2igqRR4","video_title":"영상 만들어 봤고요, 맛집 정보를 찾으시는","video_url":"https://www.youtube.com/watch?v=x7MX2igqRR4","phone":"","place_id":"614833390","area":"서울역"},{"name":"충남호프","matched_name":"충남호프","address":"서울 중구 중림동 129-34 1층","category":"호프,요리주점","macro_region":"서울 중구","sub_area":"서울역","lat":37.55770577,"lng":126.96895901,"video_id":"x7MX2igqRR4","video_title":"영상 만들어 봤고요, 맛집 정보를 찾으시는","video_url":"https://www.youtube.com/watch?v=x7MX2igqRR4","phone":"","place_id":"9304635","area":"서울역"},{"name":"COUCH Coffee","matched_name":"카우치커피","address":"서울 용산구 동자동 14-125 2층","category":"카페","macro_region":"서울 용산구","sub_area":"서울역","lat":37.5502022,"lng":126.97235369,"video_id":"x7MX2igqRR4","video_title":"영상 만들어 봤고요, 맛집 정보를 찾으시는","video_url":"https://www.youtube.com/watch?v=x7MX2igqRR4","phone":"0503-7151-0286","place_id":"1957207755","area":"서울역"},{"name":"할머니집","matched_name":"할머니집","address":"서울 중구 을지로2가 199-18 1층","category":"찌개,전골","macro_region":"서울 중구","sub_area":"","lat":37.5656988,"lng":126.98396114,"video_id":"oV85I1xdc-w","video_title":"방문하고 맛집들을 다녀봤습니다.","video_url":"https://www.youtube.com/watch?v=oV85I1xdc-w","phone":"02-777-7357","place_id":"9644663","area":""},{"name":"란주칼면","matched_name":"란주칼면","address":"서울 중구 충무로1가 25-9 동남빌딩 1층","category":"중국요리","macro_region":"서울 중구","sub_area":"","lat":37.56097732,"lng":126.98214898,"video_id":"oV85I1xdc-w","video_title":"방문하고 맛집들을 다녀봤습니다.","video_url":"https://www.youtube.com/watch?v=oV85I1xdc-w","phone":"02-779-4800","place_id":"12793877","area":""},{"name":"오우가","matched_name":"오우가","address":"광주 북구 신안동 211-6","category":"육류,고기","macro_region":"기타","sub_area":"","lat":35.1712521,"lng":126.90603922,"video_id":"oV85I1xdc-w","video_title":"방문하고 맛집들을 다녀봤습니다.","video_url":"https://www.youtube.com/watch?v=oV85I1xdc-w","phone":"","place_id":"1971334566","area":""},{"name":"명동교자","matched_name":"명동교자 이태원점","address":"서울 용산구 이태원동 34-149","category":"분식","macro_region":"서울 용산구","sub_area":"","lat":37.53085612,"lng":126.9909491,"video_id":"oV85I1xdc-w","video_title":"방문하고 맛집들을 다녀봤습니다.","video_url":"https://www.youtube.com/watch?v=oV85I1xdc-w","phone":"02-790-7300","place_id":"1952478679","area":""},{"name":"맛뜨리아","matched_name":"맛뜨리아","address":"서울 중구 저동1가 103-7 1층","category":"호프,요리주점","macro_region":"서울 중구","sub_area":"","lat":37.56448458,"lng":126.98655791,"video_id":"oV85I1xdc-w","video_title":"방문하고 맛집들을 다녀봤습니다.","video_url":"https://www.youtube.com/watch?v=oV85I1xdc-w","phone":"","place_id":"12342740","area":""},{"name":"함흥면옥","matched_name":"함흥명관","address":"서울 영등포구 영등포동3가 4-6 1층","category":"냉면","macro_region":"서울 영등포구","sub_area":"","lat":37.51913263,"lng":126.90773605,"video_id":"oV85I1xdc-w","video_title":"방문하고 맛집들을 다녀봤습니다.","video_url":"https://www.youtube.com/watch?v=oV85I1xdc-w","phone":"02-780-3975","place_id":"1778405985","area":""},{"name":"영양센타","matched_name":"영양센타능이버섯백숙","address":"서울 구로구 구로동 826-1 동일테크노타운 2차 1층","category":"육류,고기","macro_region":"서울 구로구","sub_area":"","lat":37.48257984,"lng":126.89800782,"video_id":"oV85I1xdc-w","video_title":"방문하고 맛집들을 다녀봤습니다.","video_url":"https://www.youtube.com/watch?v=oV85I1xdc-w","phone":"02-856-9292","place_id":"26474989","area":""},{"name":"코인카페","matched_name":"코인 명동점","address":"서울 중구 명동2가 54-20","category":"카페","macro_region":"서울 중구","sub_area":"","lat":37.56288771,"lng":126.98408624,"video_id":"oV85I1xdc-w","video_title":"방문하고 맛집들을 다녀봤습니다.","video_url":"https://www.youtube.com/watch?v=oV85I1xdc-w","phone":"02-753-1667","place_id":"8101536","area":""},{"name":"부산갈매기","matched_name":"부산갈매기","address":"서울 마포구 도화동 194-18","category":"육류,고기","macro_region":"서울 마포구","sub_area":"서울","lat":37.54176279,"lng":126.95091437,"video_id":"gu_7Cy_dp5I","video_title":"오래 된 노포도 많고 맛집들이","video_url":"https://www.youtube.com/watch?v=gu_7Cy_dp5I","phone":"02-718-5462","place_id":"8374003","area":"서울"},{"name":"송옥","matched_name":"송옥","address":"서울 중구 남대문로4가 17-35 1-2층","category":"국수","macro_region":"서울 중구","sub_area":"서울","lat":37.56156034,"lng":126.97737253,"video_id":"gu_7Cy_dp5I","video_title":"오래 된 노포도 많고 맛집들이","video_url":"https://www.youtube.com/watch?v=gu_7Cy_dp5I","phone":"02-752-3297","place_id":"10553650","area":"서울"},{"name":"농민백암순대 시청점","matched_name":"농민백암순대 본점","address":"서울 강남구 대치동 896-33 알앤지타운 1층","category":"국밥","macro_region":"서울 강남구","sub_area":"서울","lat":37.50373067,"lng":127.05302244,"video_id":"gu_7Cy_dp5I","video_title":"오래 된 노포도 많고 맛집들이","video_url":"https://www.youtube.com/watch?v=gu_7Cy_dp5I","phone":"02-555-9603","place_id":"17163273","area":"서울"},{"name":"애성회관","matched_name":"애성회관","address":"서울 중구 북창동 93-36 대경빌딩 1층","category":"곰탕","macro_region":"서울 중구","sub_area":"서울","lat":37.56240937,"lng":126.97891384,"video_id":"gu_7Cy_dp5I","video_title":"오래 된 노포도 많고 맛집들이","video_url":"https://www.youtube.com/watch?v=gu_7Cy_dp5I","phone":"02-352-0303","place_id":"15892869","area":"서울"},{"name":"북창동청국장집","matched_name":"북창동청국장","address":"서울 중구 북창동 94-36 1층","category":"찌개,전골","macro_region":"서울 중구","sub_area":"서울","lat":37.56230838,"lng":126.97847924,"video_id":"gu_7Cy_dp5I","video_title":"오래 된 노포도 많고 맛집들이","video_url":"https://www.youtube.com/watch?v=gu_7Cy_dp5I","phone":"02-773-5320","place_id":"7910310","area":"서울"},{"name":"북창동순두부 본점","matched_name":"북창동순두부 본점","address":"서울 중구 태평로2가 68-7 2층","category":"두부전문점","macro_region":"서울 중구","sub_area":"서울","lat":37.5631208,"lng":126.97700534,"video_id":"gu_7Cy_dp5I","video_title":"오래 된 노포도 많고 맛집들이","video_url":"https://www.youtube.com/watch?v=gu_7Cy_dp5I","phone":"02-318-4350","place_id":"27390577","area":"서울"},{"name":"융태행제과점","matched_name":"융태행제과점","address":"서울 중구 북창동 94-9 1층","category":"제과,베이커리","macro_region":"서울 중구","sub_area":"서울","lat":37.56234251,"lng":126.977902,"video_id":"gu_7Cy_dp5I","video_title":"오래 된 노포도 많고 맛집들이","video_url":"https://www.youtube.com/watch?v=gu_7Cy_dp5I","phone":"02-752-8531","place_id":"9341468","area":"서울"},{"name":"만족오향족발","matched_name":"만족오향족발 시청점","address":"서울 중구 태평로2가 318-1 1층","category":"육류,고기","macro_region":"서울 중구","sub_area":"서울","lat":37.56325755,"lng":126.9760138,"video_id":"1UAENH3K0K4","video_title":"서울 시청 맛집입니다.","video_url":"https://www.youtube.com/watch?v=1UAENH3K0K4","phone":"02-753-4755","place_id":"21324404","area":"서울"},{"name":"부민옥","matched_name":"부민옥","address":"서울 중구 다동 177-2 1층","category":"한식","macro_region":"서울 중구","sub_area":"서울","lat":37.56750384,"lng":126.98031825,"video_id":"1UAENH3K0K4","video_title":"서울 시청 맛집입니다.","video_url":"https://www.youtube.com/watch?v=1UAENH3K0K4","phone":"02-777-4323","place_id":"1346301870","area":"서울"},{"name":"무교동북어국집","matched_name":"무교동북어국집","address":"서울 중구 다동 173","category":"해장국","macro_region":"서울 중구","sub_area":"서울","lat":37.56773442,"lng":126.97985183,"video_id":"1UAENH3K0K4","video_title":"서울 시청 맛집입니다.","video_url":"https://www.youtube.com/watch?v=1UAENH3K0K4","phone":"02-777-3891","place_id":"11064200","area":"서울"},{"name":"충무집","matched_name":"충무집","address":"서울 중구 다동 123-1 1층","category":"해물,생선","macro_region":"서울 중구","sub_area":"서울","lat":37.56737798,"lng":126.98202068,"video_id":"1UAENH3K0K4","video_title":"서울 시청 맛집입니다.","video_url":"https://www.youtube.com/watch?v=1UAENH3K0K4","phone":"010-2019-4088","place_id":"781644913","area":"서울"},{"name":"인천집","matched_name":"인천집","address":"서울 중구 다동 60","category":"육류,고기","macro_region":"서울 중구","sub_area":"서울","lat":37.56780943,"lng":126.98125539,"video_id":"1UAENH3K0K4","video_title":"서울 시청 맛집입니다.","video_url":"https://www.youtube.com/watch?v=1UAENH3K0K4","phone":"02-776-6583","place_id":"9352032","area":"서울"},{"name":"이북만두","matched_name":"이북만두","address":"서울 중구 무교동 27 1층","category":"한식","macro_region":"서울 중구","sub_area":"서울","lat":37.56725486,"lng":126.97855706,"video_id":"1UAENH3K0K4","video_title":"서울 시청 맛집입니다.","video_url":"https://www.youtube.com/watch?v=1UAENH3K0K4","phone":"02-776-7361","place_id":"7855268","area":"서울"},{"name":"을지면옥","matched_name":"을지면옥","address":"서울 종로구 낙원동 55-1 1층","category":"냉면","macro_region":"서울 종로구","sub_area":"종로","lat":37.5737272,"lng":126.9885667,"video_id":"3AB3p2CfzWA","video_title":"종로3가 맛집입니다. 종로 골목부터","video_url":"https://www.youtube.com/watch?v=3AB3p2CfzWA","phone":"02-2266-7052","place_id":"1106001789","area":"종로"},{"name":"종로찌게마을","matched_name":"종로찌게마을","address":"서울 종로구 낙원동 53-1 1층","category":"찌개,전골","macro_region":"서울 종로구","sub_area":"종로","lat":37.57364699,"lng":126.98833918,"video_id":"3AB3p2CfzWA","video_title":"종로3가 맛집입니다. 종로 골목부터","video_url":"https://www.youtube.com/watch?v=3AB3p2CfzWA","phone":"02-747-4518","place_id":"8074830","area":"종로"},{"name":"미갈매기살","matched_name":"미갈매기살","address":"서울 종로구 묘동 164 익선빌딩 1층","category":"육류,고기","macro_region":"서울 종로구","sub_area":"종로","lat":37.57286969,"lng":126.99125532,"video_id":"3AB3p2CfzWA","video_title":"종로3가 맛집입니다. 종로 골목부터","video_url":"https://www.youtube.com/watch?v=3AB3p2CfzWA","phone":"","place_id":"289535795","area":"종로"},{"name":"이경문순대곱창","matched_name":"이경문순대곱창","address":"서울 종로구 돈의동 11-1 1층","category":"육류,고기","macro_region":"서울 종로구","sub_area":"종로","lat":37.57308319,"lng":126.99083759,"video_id":"3AB3p2CfzWA","video_title":"종로3가 맛집입니다. 종로 골목부터","video_url":"https://www.youtube.com/watch?v=3AB3p2CfzWA","phone":"02-765-1532","place_id":"1165642981","area":"종로"},{"name":"종로할머니칼국수","matched_name":"종로할머니칼국수 종로본점","address":"서울 종로구 돈의동 49-1 1층","category":"국수","macro_region":"서울 종로구","sub_area":"종로","lat":37.57283902,"lng":126.99078543,"video_id":"3AB3p2CfzWA","video_title":"종로3가 맛집입니다. 종로 골목부터","video_url":"https://www.youtube.com/watch?v=3AB3p2CfzWA","phone":"02-744-9548","place_id":"8034231","area":"종로"},{"name":"자연도소금빵","matched_name":"자연도소금빵&자연도가","address":"서울 종로구 익선동 166-51 1층","category":"제과,베이커리","macro_region":"서울 종로구","sub_area":"종로","lat":37.57369127,"lng":126.98967607,"video_id":"3AB3p2CfzWA","video_title":"종로3가 맛집입니다. 종로 골목부터","video_url":"https://www.youtube.com/watch?v=3AB3p2CfzWA","phone":"","place_id":"1990677632","area":"종로"},{"name":"이태리양조장","matched_name":"이태리양조장 영등포구청역점","address":"서울 영등포구 당산동2가 165 한화포레나당산 1층 109-1호","category":"호프,요리주점","macro_region":"서울 영등포구","sub_area":"종로","lat":37.52225214,"lng":126.89507825,"video_id":"3AB3p2CfzWA","video_title":"종로3가 맛집입니다. 종로 골목부터","video_url":"https://www.youtube.com/watch?v=3AB3p2CfzWA","phone":"02-2633-2720","place_id":"1978768211","area":"종로"},{"name":"광화문 미진","matched_name":"광화문미진 본점","address":"서울 종로구 종로1가 24 르메이에르종로타운 1층 116-2,117호","category":"한식","macro_region":"서울 종로구","sub_area":"광화문","lat":37.57084467,"lng":126.97992344,"video_id":"EzBKIYUdI74","video_title":"유명한 맛집들이 많죠~!?","video_url":"https://www.youtube.com/watch?v=EzBKIYUdI74","phone":"02-732-1954","place_id":"21326655","area":"광화문"},{"name":"토끼숟가락","matched_name":"토끼숟가락","address":"서울 종로구 도렴동 60 도렴빌딩 지하1층 15호","category":"일식","macro_region":"서울 종로구","sub_area":"광화문","lat":37.5735988,"lng":126.97419021,"video_id":"EzBKIYUdI74","video_title":"유명한 맛집들이 많죠~!?","video_url":"https://www.youtube.com/watch?v=EzBKIYUdI74","phone":"","place_id":"2052950691","area":"광화문"},{"name":"공샤브","matched_name":"공샤브","address":"서울 종로구 종로1가 24 르메이에르종로타운 지하1층","category":"샤브샤브","macro_region":"서울 종로구","sub_area":"광화문","lat":37.57082484,"lng":126.97989628,"video_id":"EzBKIYUdI74","video_title":"유명한 맛집들이 많죠~!?","video_url":"https://www.youtube.com/watch?v=EzBKIYUdI74","phone":"0502-5551-9615","place_id":"153004186","area":"광화문"},{"name":"매일분식","matched_name":"매일분식","address":"서울 종로구 당주동 1 1층","category":"분식","macro_region":"서울 종로구","sub_area":"광화문","lat":37.57256536,"lng":126.97418831,"video_id":"EzBKIYUdI74","video_title":"유명한 맛집들이 많죠~!?","video_url":"https://www.youtube.com/watch?v=EzBKIYUdI74","phone":"","place_id":"15747790","area":"광화문"},{"name":"소국밥","matched_name":"소국밥","address":"서울 종로구 당주동 100 지하1층 8호","category":"국밥","macro_region":"서울 종로구","sub_area":"광화문","lat":37.57185613,"lng":126.97356822,"video_id":"EzBKIYUdI74","video_title":"유명한 맛집들이 많죠~!?","video_url":"https://www.youtube.com/watch?v=EzBKIYUdI74","phone":"","place_id":"1932461866","area":"광화문"},{"name":"벙구갈비 응암점","matched_name":"벙구갈비","address":"서울 은평구 응암동 119-1 1층","category":"육류,고기","macro_region":"서울 은평구","sub_area":"","lat":37.59598862,"lng":126.91883335,"video_id":"1xV3GMf_xL0","video_title":"가면 좋을 맛집들 정리해봤습니다.","video_url":"https://www.youtube.com/watch?v=1xV3GMf_xL0","phone":"02-352-5092","place_id":"255668875","area":""},{"name":"마쯔","matched_name":"마쯔","address":"서울 금천구 독산동 287-7 2층","category":"일식","macro_region":"서울 금천구","sub_area":"","lat":37.47058247,"lng":126.89855317,"video_id":"1xV3GMf_xL0","video_title":"가면 좋을 맛집들 정리해봤습니다.","video_url":"https://www.youtube.com/watch?v=1xV3GMf_xL0","phone":"02-857-2688","place_id":"18756624","area":""},{"name":"보들이쭈꾸미","matched_name":"보들이쭈꾸미","address":"서울 은평구 신사동 21-20 1층","category":"해물,생선","macro_region":"서울 은평구","sub_area":"","lat":37.59828387,"lng":126.91311233,"video_id":"1xV3GMf_xL0","video_title":"가면 좋을 맛집들 정리해봤습니다.","video_url":"https://www.youtube.com/watch?v=1xV3GMf_xL0","phone":"02-376-3588","place_id":"1239271790","area":""},{"name":"신사한우곱창","matched_name":"집우곱창","address":"서울 관악구 신림동 518-56 1층 105호","category":"육류,고기","macro_region":"서울 관악구","sub_area":"","lat":37.48591327,"lng":126.91344729,"video_id":"1xV3GMf_xL0","video_title":"가면 좋을 맛집들 정리해봤습니다.","video_url":"https://www.youtube.com/watch?v=1xV3GMf_xL0","phone":"","place_id":"927797779","area":""},{"name":"빅토리아갈비찜","matched_name":"빅토리아","address":"서울 은평구 응암동 579-45 1층","category":"육류,고기","macro_region":"서울 은평구","sub_area":"","lat":37.59397069,"lng":126.91667282,"video_id":"1xV3GMf_xL0","video_title":"가면 좋을 맛집들 정리해봤습니다.","video_url":"https://www.youtube.com/watch?v=1xV3GMf_xL0","phone":"02-309-7870","place_id":"16327493","area":""},{"name":"상하이문","matched_name":"상하이문","address":"서울 은평구 응암동 124-17 1층","category":"중국요리","macro_region":"서울 은평구","sub_area":"","lat":37.59402106,"lng":126.91782546,"video_id":"1xV3GMf_xL0","video_title":"가면 좋을 맛집들 정리해봤습니다.","video_url":"https://www.youtube.com/watch?v=1xV3GMf_xL0","phone":"02-335-3822","place_id":"11003133","area":""},{"name":"플롭","matched_name":"플롭 연남","address":"서울 마포구 연남동 390-23 1층","category":"피자","macro_region":"서울 마포구","sub_area":"","lat":37.56189226,"lng":126.92559343,"video_id":"1xV3GMf_xL0","video_title":"가면 좋을 맛집들 정리해봤습니다.","video_url":"https://www.youtube.com/watch?v=1xV3GMf_xL0","phone":"02-332-1195","place_id":"779711057","area":""},{"name":"깡통그릴","matched_name":"깡통그릴","address":"서울 은평구 응암동 593-37 1층","category":"육류,고기","macro_region":"서울 은평구","sub_area":"","lat":37.58759884,"lng":126.91410978,"video_id":"1xV3GMf_xL0","video_title":"가면 좋을 맛집들 정리해봤습니다.","video_url":"https://www.youtube.com/watch?v=1xV3GMf_xL0","phone":"","place_id":"729640986","area":""},{"name":"남대문","matched_name":"남대문야채호떡","address":"서울 중구 남대문로4가 18-1","category":"분식","macro_region":"서울 중구","sub_area":"","lat":37.56066112,"lng":126.97723359,"video_id":"XfwFaJnOD20","video_title":"좋아하는 맛집 위주로 영상 만들어봤는데요!","video_url":"https://www.youtube.com/watch?v=XfwFaJnOD20","phone":"010-8247-4868","place_id":"17264741","area":""},{"name":"희락갈치","matched_name":"희락갈치","address":"서울 중구 남창동 34-34 1,2층","category":"해물,생선","macro_region":"서울 중구","sub_area":"","lat":37.55989345,"lng":126.97710367,"video_id":"XfwFaJnOD20","video_title":"좋아하는 맛집 위주로 영상 만들어봤는데요!","video_url":"https://www.youtube.com/watch?v=XfwFaJnOD20","phone":"02-755-3449","place_id":"8670706","area":""},{"name":"김명숙아지매순대국","matched_name":"김명숙아지매순대국","address":"서울 중구 회현동1가 194-39 1층","category":"순대","macro_region":"서울 중구","sub_area":"","lat":37.55903069,"lng":126.97926565,"video_id":"XfwFaJnOD20","video_title":"좋아하는 맛집 위주로 영상 만들어봤는데요!","video_url":"https://www.youtube.com/watch?v=XfwFaJnOD20","phone":"02-318-9702","place_id":"1488531101","area":""},{"name":"경주장모님미역국","matched_name":"경주장모님미역국 명동점","address":"서울 중구 회현동1가 206 SK리더스뷰남산 지하1층 117호","category":"한식","macro_region":"서울 중구","sub_area":"","lat":37.55936249,"lng":126.98061578,"video_id":"XfwFaJnOD20","video_title":"좋아하는 맛집 위주로 영상 만들어봤는데요!","video_url":"https://www.youtube.com/watch?v=XfwFaJnOD20","phone":"02-777-3203","place_id":"18875924","area":""},{"name":"남대문시장","matched_name":"남대문시장","address":"서울 중구 남창동 49-1","category":"시장","macro_region":"서울 중구","sub_area":"","lat":37.55918176,"lng":126.97762677,"video_id":"XfwFaJnOD20","video_title":"좋아하는 맛집 위주로 영상 만들어봤는데요!","video_url":"https://www.youtube.com/watch?v=XfwFaJnOD20","phone":"02-753-2805","place_id":"7934963","area":""},{"name":"가메골손왕만두 남대문본점","matched_name":"가메골손왕만두 남대문본점","address":"서울 중구 남창동 60-2 1층","category":"분식","macro_region":"서울 중구","sub_area":"","lat":37.55835455,"lng":126.97711546,"video_id":"XfwFaJnOD20","video_title":"좋아하는 맛집 위주로 영상 만들어봤는데요!","video_url":"https://www.youtube.com/watch?v=XfwFaJnOD20","phone":"02-755-2569","place_id":"11486129","area":""},{"name":"막내회집 본점","matched_name":"막내회집 본점","address":"서울 중구 남창동 50-48 2층","category":"해물,생선","macro_region":"서울 중구","sub_area":"","lat":37.5593726,"lng":126.97673034,"video_id":"XfwFaJnOD20","video_title":"좋아하는 맛집 위주로 영상 만들어봤는데요!","video_url":"https://www.youtube.com/watch?v=XfwFaJnOD20","phone":"02-755-5115","place_id":"10335617","area":""},{"name":"진주집","matched_name":"진주집","address":"서울 영등포구 여의도동 36-2 지하1층 5~7,27~28호","category":"국수","macro_region":"서울 영등포구","sub_area":"","lat":37.52059128,"lng":126.92695006,"video_id":"XfwFaJnOD20","video_title":"좋아하는 맛집 위주로 영상 만들어봤는데요!","video_url":"https://www.youtube.com/watch?v=XfwFaJnOD20","phone":"02-780-6108","place_id":"8094563","area":""},{"name":"우모촌","matched_name":"우모촌","address":"서울 중구 남대문로4가 20-60 2층","category":"돈까스,우동","macro_region":"서울 중구","sub_area":"","lat":37.56008343,"lng":126.97642679,"video_id":"XfwFaJnOD20","video_title":"좋아하는 맛집 위주로 영상 만들어봤는데요!","video_url":"https://www.youtube.com/watch?v=XfwFaJnOD20","phone":"02-757-3936","place_id":"15463889","area":""},{"name":"담소분식","matched_name":"담소분식","address":"서울 중구 남창동 50-41 1층","category":"분식","macro_region":"서울 중구","sub_area":"","lat":37.55897894,"lng":126.97713564,"video_id":"XfwFaJnOD20","video_title":"좋아하는 맛집 위주로 영상 만들어봤는데요!","video_url":"https://www.youtube.com/watch?v=XfwFaJnOD20","phone":"","place_id":"27284761","area":""},{"name":"남대문야채호떡","matched_name":"남대문야채호떡","address":"서울 중구 남대문로4가 18-1","category":"분식","macro_region":"서울 중구","sub_area":"","lat":37.56066112,"lng":126.97723359,"video_id":"XfwFaJnOD20","video_title":"좋아하는 맛집 위주로 영상 만들어봤는데요!","video_url":"https://www.youtube.com/watch?v=XfwFaJnOD20","phone":"010-8247-4868","place_id":"17264741","area":""},{"name":"정돈 대학로 본점","matched_name":"정돈","address":"서울 종로구 명륜4가 107 지하1층","category":"돈까스,우동","macro_region":"서울 종로구","sub_area":"","lat":37.58178895,"lng":127.00109477,"video_id":"6alwJITTQlU","video_title":"안녕하세요 오늘 소개할 곳은","video_url":"https://www.youtube.com/watch?v=6alwJITTQlU","phone":"02-987-0924","place_id":"27306859","area":""},{"name":"명륜건강","matched_name":"명륜건강증진센터","address":"서울 종로구 명륜3가 147-1","category":"건강검진","macro_region":"서울 종로구","sub_area":"","lat":37.58344946,"lng":126.9977855,"video_id":"6alwJITTQlU","video_title":"안녕하세요 오늘 소개할 곳은","video_url":"https://www.youtube.com/watch?v=6alwJITTQlU","phone":"02-2148-3733","place_id":"25127111","area":""},{"name":"무제스시","matched_name":"무제스시","address":"서울 종로구 명륜4가 118-5","category":"초밥,롤","macro_region":"서울 종로구","sub_area":"","lat":37.58184571,"lng":127.00061588,"video_id":"6alwJITTQlU","video_title":"안녕하세요 오늘 소개할 곳은","video_url":"https://www.youtube.com/watch?v=6alwJITTQlU","phone":"010-5762-7399","place_id":"268202906","area":""},{"name":"연건삼계탕","matched_name":"연건삼계탕","address":"서울 종로구 연건동 86 1,2층","category":"육류,고기","macro_region":"서울 종로구","sub_area":"","lat":37.57867601,"lng":127.00172983,"video_id":"6alwJITTQlU","video_title":"안녕하세요 오늘 소개할 곳은","video_url":"https://www.youtube.com/watch?v=6alwJITTQlU","phone":"02-762-5084","place_id":"10661169","area":""},{"name":"국수가","matched_name":"국수가","address":"서울 용산구 원효로3가 35-3","category":"국수","macro_region":"서울 용산구","sub_area":"","lat":37.53469647,"lng":126.95857193,"video_id":"6alwJITTQlU","video_title":"안녕하세요 오늘 소개할 곳은","video_url":"https://www.youtube.com/watch?v=6alwJITTQlU","phone":"","place_id":"1307524348","area":""},{"name":"꼬치오뎅","matched_name":"25센치 꼬치앤오뎅바 영등포직영점","address":"서울 영등포구 영등포동3가 23-8 1층","category":"오뎅바","macro_region":"서울 영등포구","sub_area":"","lat":37.51781828,"lng":126.90918103,"video_id":"6alwJITTQlU","video_title":"안녕하세요 오늘 소개할 곳은","video_url":"https://www.youtube.com/watch?v=6alwJITTQlU","phone":"010-8992-2147","place_id":"2146817086","area":""},{"name":"옥이모깻잎떡볶이","matched_name":"옥이모깻잎떡볶이","address":"서울 종로구 명륜4가 91 1층","category":"떡볶이","macro_region":"서울 종로구","sub_area":"","lat":37.58221322,"lng":127.00163922,"video_id":"6alwJITTQlU","video_title":"안녕하세요 오늘 소개할 곳은","video_url":"https://www.youtube.com/watch?v=6alwJITTQlU","phone":"070-8119-5668","place_id":"215290061","area":""},{"name":"명동도면","matched_name":"명동도면","address":"서울 종로구 명륜2가 237 1층","category":"국수","macro_region":"서울 종로구","sub_area":"","lat":37.58521183,"lng":127.000394,"video_id":"6alwJITTQlU","video_title":"안녕하세요 오늘 소개할 곳은","video_url":"https://www.youtube.com/watch?v=6alwJITTQlU","phone":"","place_id":"1842631338","area":""},{"name":"1.황평집","matched_name":"황평집","address":"서울 중구 인현동2가 135-13 1층","category":"육류,고기","macro_region":"서울 중구","sub_area":"","lat":37.56406722,"lng":126.99612903,"video_id":"7NxLX6W_Jek","video_title":"안녕하세요 오늘 소개할 맛집 동네는 을지로 입니다~!","video_url":"https://www.youtube.com/watch?v=7NxLX6W_Jek","phone":"02-2266-6875","place_id":"12751485","area":""},{"name":"2.우래옥","matched_name":"우래옥 본점","address":"서울 중구 주교동 118-1 1-2층","category":"냉면","macro_region":"서울 중구","sub_area":"","lat":37.56821186,"lng":126.99871866,"video_id":"7NxLX6W_Jek","video_title":"안녕하세요 오늘 소개할 맛집 동네는 을지로 입니다~!","video_url":"https://www.youtube.com/watch?v=7NxLX6W_Jek","phone":"02-2265-0151","place_id":"8025375","area":""},{"name":"3.다케오 호르몬 데판야끼","matched_name":"다케오 호르몬 데판야끼 문래점","address":"서울 영등포구 문래동3가 58-36 1층","category":"일식집","macro_region":"서울 영등포구","sub_area":"","lat":37.51473402,"lng":126.89489875,"video_id":"7NxLX6W_Jek","video_title":"안녕하세요 오늘 소개할 맛집 동네는 을지로 입니다~!","video_url":"https://www.youtube.com/watch?v=7NxLX6W_Jek","phone":"","place_id":"1874236848","area":""},{"name":"4.올디스타코","matched_name":"올디스타코","address":"서울 중구 초동 17-4 1층","category":"멕시칸,브라질","macro_region":"서울 중구","sub_area":"","lat":37.56506447,"lng":126.99293481,"video_id":"7NxLX6W_Jek","video_title":"안녕하세요 오늘 소개할 맛집 동네는 을지로 입니다~!","video_url":"https://www.youtube.com/watch?v=7NxLX6W_Jek","phone":"02-6397-6969","place_id":"457395048","area":""},{"name":"5.파주옥","matched_name":"충무로파주옥","address":"서울 중구 초동 53-2 1층","category":"곰탕","macro_region":"서울 중구","sub_area":"","lat":37.56341468,"lng":126.99190045,"video_id":"7NxLX6W_Jek","video_title":"안녕하세요 오늘 소개할 맛집 동네는 을지로 입니다~!","video_url":"https://www.youtube.com/watch?v=7NxLX6W_Jek","phone":"02-2267-6149","place_id":"8133034","area":""},{"name":"6.전주집","matched_name":"전주집","address":"서울 영등포구 영등포동5가 20-62 삼구상가 1층 14호","category":"육류,고기","macro_region":"서울 영등포구","sub_area":"","lat":37.52013055,"lng":126.9061025,"video_id":"7NxLX6W_Jek","video_title":"안녕하세요 오늘 소개할 맛집 동네는 을지로 입니다~!","video_url":"https://www.youtube.com/watch?v=7NxLX6W_Jek","phone":"02-2677-7949","place_id":"820040915","area":""},{"name":"7.안동장","matched_name":"안동장","address":"서울 영등포구 신길동 114-1 2층","category":"중국요리","macro_region":"서울 영등포구","sub_area":"","lat":37.51188851,"lng":126.91740435,"video_id":"7NxLX6W_Jek","video_title":"안녕하세요 오늘 소개할 맛집 동네는 을지로 입니다~!","video_url":"https://www.youtube.com/watch?v=7NxLX6W_Jek","phone":"02-832-7610","place_id":"10582836","area":""},{"name":"1. 장구통 누룽지 통닭","matched_name":"장구통","address":"서울 은평구 역촌동 40-52","category":"치킨","macro_region":"서울 은평구","sub_area":"연신내","lat":37.60257794,"lng":126.92071059,"video_id":"-v5AMuRaBqc","video_title":"이번 영상에서 맛집으로 스트레스 해방할","video_url":"https://www.youtube.com/watch?v=-v5AMuRaBqc","phone":"02-389-6692","place_id":"27197008","area":"연신내"},{"name":"3. 아주불곱창","matched_name":"아주불곱창 응암점","address":"서울 은평구 응암동 90-14","category":"육류,고기","macro_region":"서울 은평구","sub_area":"연신내","lat":37.60007929,"lng":126.91909163,"video_id":"-v5AMuRaBqc","video_title":"이번 영상에서 맛집으로 스트레스 해방할","video_url":"https://www.youtube.com/watch?v=-v5AMuRaBqc","phone":"02-384-5440","place_id":"13566870","area":"연신내"},{"name":"4. 원조 은평감자국","matched_name":"원조은평감자국","address":"서울 은평구 응암동 117-9 1층","category":"감자탕","macro_region":"서울 은평구","sub_area":"연신내","lat":37.59730648,"lng":126.91972649,"video_id":"-v5AMuRaBqc","video_title":"이번 영상에서 맛집으로 스트레스 해방할","video_url":"https://www.youtube.com/watch?v=-v5AMuRaBqc","phone":"02-389-4458","place_id":"8542243","area":"연신내"},{"name":"5. 봉평 옹심이 메밀 칼국수","matched_name":"봉평 옹심이메밀칼국수","address":"서울 은평구 불광동 310-238 1층","category":"국수","macro_region":"서울 은평구","sub_area":"연신내","lat":37.61971561,"lng":126.9220018,"video_id":"-v5AMuRaBqc","video_title":"이번 영상에서 맛집으로 스트레스 해방할","video_url":"https://www.youtube.com/watch?v=-v5AMuRaBqc","phone":"02-354-5121","place_id":"27275040","area":"연신내"},{"name":"6. 녹번꼼장어","matched_name":"숯불꼼장어","address":"서울 은평구 녹번동 117-115 1층","category":"해물,생선","macro_region":"서울 은평구","sub_area":"연신내","lat":37.6081601,"lng":126.93164491,"video_id":"-v5AMuRaBqc","video_title":"이번 영상에서 맛집으로 스트레스 해방할","video_url":"https://www.youtube.com/watch?v=-v5AMuRaBqc","phone":"02-386-6117","place_id":"15610876","area":"연신내"},{"name":"7. 구룡포 막회","matched_name":"구룡포자연산막회","address":"서울 은평구 불광동 281-36 1층","category":"해물,생선","macro_region":"서울 은평구","sub_area":"연신내","lat":37.61090173,"lng":126.9314963,"video_id":"-v5AMuRaBqc","video_title":"이번 영상에서 맛집으로 스트레스 해방할","video_url":"https://www.youtube.com/watch?v=-v5AMuRaBqc","phone":"02-388-1278","place_id":"16051143","area":"연신내"},{"name":"8. 신사돼지뽈집","matched_name":"신사돼지뽈집","address":"서울 은평구 신사동 16-30 1층","category":"육류,고기","macro_region":"서울 은평구","sub_area":"연신내","lat":37.60032868,"lng":126.91011359,"video_id":"-v5AMuRaBqc","video_title":"이번 영상에서 맛집으로 스트레스 해방할","video_url":"https://www.youtube.com/watch?v=-v5AMuRaBqc","phone":"02-354-6854","place_id":"7973965","area":"연신내"},{"name":"9. 정선할매","matched_name":"정선할매","address":"서울 은평구 녹번동 44-19 1층","category":"한식","macro_region":"서울 은평구","sub_area":"연신내","lat":37.60147998,"lng":126.93289444,"video_id":"-v5AMuRaBqc","video_title":"이번 영상에서 맛집으로 스트레스 해방할","video_url":"https://www.youtube.com/watch?v=-v5AMuRaBqc","phone":"","place_id":"1908737337","area":"연신내"},{"name":"은성감자탕","matched_name":"은성감자탕","address":"서울 영등포구 당산동3가 173 1층","category":"감자탕","macro_region":"서울 영등포구","sub_area":"","lat":37.52672132,"lng":126.89735948,"video_id":"UWvZlRIXqHU","video_title":"오늘 소개할 곳은 영등포 맛집입니다!","video_url":"https://www.youtube.com/watch?v=UWvZlRIXqHU","phone":"02-2632-0792","place_id":"1985593786","area":""},{"name":"대관원","matched_name":"대관원","address":"서울 영등포구 당산동4가 49 2층","category":"중국요리","macro_region":"서울 영등포구","sub_area":"","lat":37.52939957,"lng":126.8979079,"video_id":"UWvZlRIXqHU","video_title":"오늘 소개할 곳은 영등포 맛집입니다!","video_url":"https://www.youtube.com/watch?v=UWvZlRIXqHU","phone":"02-2068-8791","place_id":"27221935","area":""},{"name":"오뎅.정종","matched_name":"오뎅정종","address":"서울 영등포구 영등포동3가 12-12 1층","category":"오뎅바","macro_region":"서울 영등포구","sub_area":"","lat":37.5175905,"lng":126.90939962,"video_id":"UWvZlRIXqHU","video_title":"오늘 소개할 곳은 영등포 맛집입니다!","video_url":"https://www.youtube.com/watch?v=UWvZlRIXqHU","phone":"02-2678-1528","place_id":"27315591","area":""},{"name":"현 고대닭발","matched_name":"현고대닭발 영등포점","address":"서울 영등포구 영등포동3가 13-12 1층","category":"육류,고기","macro_region":"서울 영등포구","sub_area":"","lat":37.51807883,"lng":126.90938206,"video_id":"UWvZlRIXqHU","video_title":"오늘 소개할 곳은 영등포 맛집입니다!","video_url":"https://www.youtube.com/watch?v=UWvZlRIXqHU","phone":"02-2678-9495","place_id":"12779894","area":""},{"name":"함흥냉면","matched_name":"함흥냉면","address":"서울 영등포구 영등포동3가 7-32 1층","category":"냉면","macro_region":"서울 영등포구","sub_area":"","lat":37.5189661,"lng":126.90679058,"video_id":"UWvZlRIXqHU","video_title":"오늘 소개할 곳은 영등포 맛집입니다!","video_url":"https://www.youtube.com/watch?v=UWvZlRIXqHU","phone":"02-2678-2722","place_id":"10643743","area":""},{"name":"송죽장","matched_name":"송죽장","address":"서울 영등포구 영등포동4가 98-12 1층","category":"중국요리","macro_region":"서울 영등포구","sub_area":"","lat":37.51825084,"lng":126.90469881,"video_id":"UWvZlRIXqHU","video_title":"오늘 소개할 곳은 영등포 맛집입니다!","video_url":"https://www.youtube.com/watch?v=UWvZlRIXqHU","phone":"02-2678-1323","place_id":"10546066","area":""},{"name":"맛있는집","matched_name":"맛집","address":"서울 영등포구 영등포동4가 425-8 1층","category":"한식","macro_region":"서울 영등포구","sub_area":"","lat":37.51615922,"lng":126.90533943,"video_id":"UWvZlRIXqHU","video_title":"오늘 소개할 곳은 영등포 맛집입니다!","video_url":"https://www.youtube.com/watch?v=UWvZlRIXqHU","phone":"02-2679-5388","place_id":"19011175","area":""}];
+
+// ===== 광역 지역 색상 팔레트 =====
+const REGION_COLORS = {
+  "서울 종로구":   "#FF4B2B",
+  "서울 은평구":   "#7C5CBF",
+  "서울 중구":     "#E8871A",
+  "서울 기타":     "#2E86AB",
+  "서울 서대문구": "#C2427A",
+  "강원 강릉":     "#4CAF50",
+  "서울 마포구":   "#00897B",
+  "서울 동대문구": "#F4511E",
+  "서울 영등포구": "#039BE5",
+  "서울 성동구":   "#8E24AA",
+  "경기 고양시":   "#3949AB",
+  "전북 군산":     "#43A047",
+  "서울 강서구":   "#E53935",
+  "경기 파주시":   "#00ACC1",
+  "서울":          "#F4511E",
+  "대전":          "#FB8C00",
+};
+function getColor(region) {
+  return REGION_COLORS[region] || "#6B6B80";
+}
+
+// ===== 지도 초기화 =====
+const map = L.map("map", {
+  center: [36.5, 127.8],
+  zoom: 7,
+  zoomControl: false,
+});
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  maxZoom: 19,
+}).addTo(map);
+L.control.zoom({ position: "topright" }).addTo(map);
+
+// ===== 마커 클러스터 그룹 =====
+const clusterGroup = L.markerClusterGroup({
+  showCoverageOnHover: false,
+  maxClusterRadius: 50,
+  spiderfyOnMaxZoom: true,
+  chunkedLoading: true,
+});
+
+// ===== 마커 생성 =====
+function createMarkerIcon(color, isHighlighted) {
+  const cls = isHighlighted ? "custom-marker near-highlight" : "custom-marker";
+  return L.divIcon({
+    className: "",
+    html: `<div class="${cls}" style="background:${color}"></div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+    popupAnchor: [0, -14],
+  });
+}
+
+const markers = [];
+RESTAURANTS.forEach((r, idx) => {
+  const color = getColor(r.macro_region);
+  const marker = L.marker([r.lat, r.lng], {
+    icon: createMarkerIcon(color, false),
+    title: r.name,
+  });
+  marker._restaurantIdx = idx;
+  marker._color = color;
+  marker.bindPopup(buildPopupHtml(r), { maxWidth: 240, className: "custom-popup" });
+  marker.on("click", () => highlightCard(idx));
+  markers.push(marker);
+});
+
+function buildPopupHtml(r) {
+  const color = getColor(r.macro_region);
+  return `<div class="popup-inner">
+    <div class="popup-region-badge" style="background:${color}">${r.macro_region}</div>
+    <div class="popup-name">${r.name}</div>
+    <div class="popup-area">${r.area && r.area !== r.macro_region ? r.area + " · " : ""}${r.macro_region}</div>
+    ${r.address ? `<div class="popup-address">📍 ${r.address}</div>` : ""}
+    ${r.category ? `<div class="popup-cat">${r.category}</div>` : ""}
+    <div class="popup-video-title">${r.video_title}</div>
+    <a class="popup-yt-link" href="${r.video_url}" target="_blank" rel="noopener">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z"/></svg>
+      유튜브에서 보기
+    </a>
+  </div>`;
+}
+
+// ===== 필터 칩 생성 =====
+const regions = ["전체", ...Object.keys(REGION_COLORS).filter(k => RESTAURANTS.some(r => r.macro_region === k))];
+const activeRegions = new Set();
+
+const filterChipsEl = document.getElementById("filter-chips");
+regions.forEach(region => {
+  const chip = document.createElement("button");
+  chip.className = "filter-chip" + (region === "전체" ? " active" : "");
+  const color = region === "전체" ? "#6B6B80" : getColor(region);
+  const count = region === "전체" ? RESTAURANTS.length : RESTAURANTS.filter(r => r.macro_region === region).length;
+  chip.innerHTML = `<span class="chip-dot" style="background:${color}"></span>${region} <span style="opacity:0.65;font-weight:500;margin-left:2px">${count}</span>`;
+  chip.dataset.region = region;
+  chip.addEventListener("click", () => toggleRegionFilter(region, chip));
+  filterChipsEl.appendChild(chip);
+});
+
+function toggleRegionFilter(region, chipEl) {
+  if (region === "전체") {
+    activeRegions.clear();
+    document.querySelectorAll(".filter-chip").forEach(c => {
+      c.classList.toggle("active", c.dataset.region === "전체");
+    });
+  } else {
+    // 전체 칩 해제
+    document.querySelector(".filter-chip[data-region=\"전체\"]").classList.remove("active");
+    if (activeRegions.has(region)) {
+      activeRegions.delete(region);
+      chipEl.classList.remove("active");
+    } else {
+      activeRegions.add(region);
+      chipEl.classList.add("active");
+    }
+    if (activeRegions.size === 0) {
+      document.querySelector(".filter-chip[data-region=\"전체\"]").classList.add("active");
+    }
+  }
+  applyFilters();
+}
+
+// ===== 검색 =====
+const searchInput = document.getElementById("search-input");
+const searchClear = document.getElementById("search-clear");
+
+searchInput.addEventListener("input", () => {
+  const val = searchInput.value.trim();
+  searchClear.classList.toggle("visible", val.length > 0);
+  applyFilters();
+  if (sheet.className !== "state-full" && sheet.className !== "state-mid") {
+    setSheetState("state-mid");
+  }
+});
+searchInput.addEventListener("focus", () => {
+  if (window.innerWidth < 768 && sheet.className === "state-peek") {
+    setSheetState("state-mid");
+  }
+});
+searchClear.addEventListener("click", () => {
+  searchInput.value = "";
+  searchClear.classList.remove("visible");
+  applyFilters();
+  searchInput.focus();
+});
+
+// ===== 필터 적용 =====
+let filteredIndices = RESTAURANTS.map((_, i) => i);
+
+function applyFilters() {
+  const query = searchInput.value.trim().toLowerCase();
+  filteredIndices = RESTAURANTS.map((r, i) => {
+    const regionOk = activeRegions.size === 0 || activeRegions.has(r.macro_region);
+    const queryOk = !query || r.name.toLowerCase().includes(query) || r.area.toLowerCase().includes(query) || r.macro_region.toLowerCase().includes(query);
+    return regionOk && queryOk ? i : -1;
+  }).filter(i => i >= 0);
+
+  renderList();
+  updateMapMarkers();
+}
+
+function renderList() {
+  const listEl = document.getElementById("restaurant-list");
+  const countEl = document.getElementById("list-count");
+  const emptyEl = document.getElementById("empty-state");
+
+  countEl.textContent = `${filteredIndices.length}개 맛집`;
+  listEl.innerHTML = "";
+
+  if (filteredIndices.length === 0) {
+    emptyEl.classList.add("visible");
+    return;
+  }
+  emptyEl.classList.remove("visible");
+
+  const fragment = document.createDocumentFragment();
+  filteredIndices.forEach(idx => {
+    const r = RESTAURANTS[idx];
+    const color = getColor(r.macro_region);
+    const card = document.createElement("div");
+    card.className = "restaurant-card";
+    card.dataset.idx = idx;
+    card.innerHTML = `
+      <div class="card-dot" style="background:${color};color:${color}"></div>
+      <div class="card-content">
+        <div class="card-name">${r.name}</div>
+        <span class="card-area-chip" style="background:${color}">${r.macro_region}</span>
+        <div class="card-video">
+          <svg class="card-video-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z"/></svg>
+          ${r.video_title}
+        </div>
+      </div>`;
+    card.addEventListener("click", () => flyToRestaurant(idx));
+    fragment.appendChild(card);
+  });
+  listEl.appendChild(fragment);
+}
+
+function updateMapMarkers() {
+  clusterGroup.clearLayers();
+  const filteredSet = new Set(filteredIndices);
+  filteredIndices.forEach(idx => {
+    clusterGroup.addLayer(markers[idx]);
+  });
+}
+
+function flyToRestaurant(idx) {
+  const r = RESTAURANTS[idx];
+  map.flyTo([r.lat, r.lng], 17, { duration: 0.8 });
+  setTimeout(() => markers[idx].openPopup(), 900);
+  highlightCard(idx);
+
+  if (window.innerWidth < 768) {
+    setSheetState("state-peek");
+  }
+}
+
+function highlightCard(idx) {
+  document.querySelectorAll(".restaurant-card").forEach(c => {
+    c.classList.toggle("highlighted", parseInt(c.dataset.idx) === idx);
+  });
+  const card = document.querySelector(`.restaurant-card[data-idx="${idx}"]`);
+  if (card) {
+    card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+}
+
+// ===== 바텀 시트 드래그 =====
+const sheet = document.getElementById("sheet");
+const handleArea = document.getElementById("sheet-handle-area");
+let startY = 0, startTranslate = 0, isDragging = false;
+const SHEET_HEIGHTS = {
+  "state-peek": window.innerHeight - 72,
+  "state-mid": window.innerHeight * 0.58,
+  "state-full": window.innerHeight * 0.13,
+};
+
+function setSheetState(state) {
+  sheet.className = state;
+  // 컨트롤 버튼 위치도 조정
+  const controls = document.getElementById("map-controls");
+  if (state === "state-peek") {
+    controls.style.bottom = "calc(var(--sheet-peek) + 16px)";
+  } else if (state === "state-mid") {
+    controls.style.bottom = "calc(var(--sheet-mid) + 16px)";
+  } else {
+    controls.style.bottom = "calc(var(--sheet-full) + 16px)";
+  }
+}
+
+function getSheetTranslate() {
+  const style = window.getComputedStyle(sheet);
+  const matrix = new DOMMatrix(style.transform);
+  return matrix.m42;
+}
+
+handleArea.addEventListener("pointerdown", e => {
+  if (window.innerWidth >= 768) return;
+  isDragging = true;
+  startY = e.clientY;
+  startTranslate = getSheetTranslate();
+  sheet.style.transition = "none";
+  handleArea.setPointerCapture(e.pointerId);
+});
+
+handleArea.addEventListener("pointermove", e => {
+  if (!isDragging) return;
+  const delta = e.clientY - startY;
+  const newTranslate = Math.max(window.innerHeight * 0.08, Math.min(window.innerHeight - 55, startTranslate + delta));
+  sheet.style.transform = `translateY(${newTranslate}px)`;
+});
+
+handleArea.addEventListener("pointerup", e => {
+  if (!isDragging) return;
+  isDragging = false;
+  sheet.style.transition = "";
+  sheet.style.transform = "";
+
+  const currentY = getSheetTranslate();
+  const h = window.innerHeight;
+
+  if (currentY < h * 0.25) {
+    setSheetState("state-full");
+  } else if (currentY < h * 0.65) {
+    setSheetState("state-mid");
+  } else {
+    setSheetState("state-peek");
+  }
+});
+
+// 핸들 탭으로 상태 전환
+handleArea.addEventListener("click", e => {
+  if (window.innerWidth >= 768) return;
+  if (isDragging) return;
+  const states = ["state-peek", "state-mid", "state-full"];
+  const cur = states.indexOf(sheet.className);
+  setSheetState(states[(cur + 1) % states.length]);
+});
+
+// ===== 현재 위치 버튼 =====
+const btnLocation = document.getElementById("btn-location");
+let nearHighlightActive = false;
+
+btnLocation.addEventListener("click", () => {
+  if (!navigator.geolocation) {
+    showToast("위치 정보를 지원하지 않는 브라우저입니다");
+    return;
+  }
+  showToast("현재 위치를 찾는 중...");
+  navigator.geolocation.getCurrentPosition(pos => {
+    const { latitude, longitude } = pos.coords;
+    map.flyTo([latitude, longitude], 14, { duration: 1 });
+    btnLocation.classList.add("active");
+    nearHighlightActive = true;
+
+    // 가장 가까운 10개
+    const dists = RESTAURANTS.map((r, i) => ({
+      idx: i,
+      dist: Math.hypot(r.lat - latitude, r.lng - longitude),
+    })).sort((a, b) => a.dist - b.dist);
+    const nearSet = new Set(dists.slice(0, 10).map(d => d.idx));
+
+    markers.forEach((m, i) => {
+      const color = m._color;
+      m.setIcon(createMarkerIcon(color, nearSet.has(i)));
+    });
+
+    showToast(`내 주변 가장 가까운 10개 맛집을 강조했습니다`);
+    setTimeout(() => {
+      btnLocation.classList.remove("active");
+      markers.forEach((m, i) => m.setIcon(createMarkerIcon(m._color, false)));
+      nearHighlightActive = false;
+    }, 8000);
+  }, () => {
+    showToast("위치 정보 접근이 거부되었습니다");
+  }, { timeout: 8000 });
+});
+
+// ===== 전체 보기 버튼 =====
+document.getElementById("btn-reset").addEventListener("click", () => {
+  map.flyTo([36.5, 127.8], 7, { duration: 1 });
+});
+
+// ===== 토스트 =====
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 3000);
+}
+
+// ===== 초기화 =====
+function init() {
+  clusterGroup.addTo(map);
+  applyFilters(); // 전체 렌더링
+  document.getElementById("loading-overlay").classList.add("hidden");
+}
+
+// Leaflet 로드 완료 후 초기화
+if (typeof L !== "undefined") {
+  init();
+} else {
+  window.addEventListener("load", init);
+}
+</script>
+</body>
+</html>
